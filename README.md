@@ -2,7 +2,7 @@
 
 Projekt realizowany przez:
 - Krzysztof Noska-Figiel, 160054
-- Rishi Dixit, 
+- Rishi Dixit, 160334
 
 # O projekcie
 
