@@ -32,7 +32,7 @@ jobs:
       run: cmake --build build --config Release
 
     - name: Build server
-      run: g++ server/server.cpp -o server
+      run: g++ server/server.cpp -o server_app
 
     - name: Upload client artifact
       uses: actions/upload-artifact@v4
@@ -44,4 +44,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: server
-        path: server/
+        path: server_app
