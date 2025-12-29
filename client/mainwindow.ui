@@ -58,7 +58,7 @@
      <rect>
       <x>330</x>
       <y>90</y>
-      <width>41</width>
+      <width>51</width>
       <height>27</height>
      </rect>
     </property>
@@ -66,7 +66,7 @@
    <widget class="QLabel" name="label_2">
     <property name="geometry">
      <rect>
-      <x>330</x>
+      <x>340</x>
       <y>60</y>
       <width>70</width>
       <height>19</height>
@@ -74,6 +74,22 @@
     </property>
     <property name="text">
      <string>Port:</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="serverMsgLabel">
+    <property name="enabled">
+     <bool>true</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>200</x>
+      <y>150</y>
+      <width>321</width>
+      <height>19</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>TextLabel</string>
     </property>
    </widget>
   </widget>
