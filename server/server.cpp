@@ -28,12 +28,16 @@ Co oznacza ze kazdy nowy watek bedzie tworzyl minimum 2 nowe watki do komunikacj
 #include <cstring>
 #include <errno.h>
 #include <string>
+#include <random>
+#include <chrono>
+#include <sstream>
+
 /* Zmienna przechowujaca maksymalnego inta*/
 #define MAX_INT std::numeric_limits<int>::max()
 #define MAX_CLIENTS_PER_THREAD 4
-#define MAX_EVENTS 10
+#define MAX_EVENTS 12
 #define BUFFER_SIZE 1024
-
+#define GAME_GRID_SIZE 20
 
 // Struktura reprezentujaca pojedynczego klienta
 struct Client {
@@ -50,13 +54,19 @@ struct WorkerThread {
     bool is_running;              // Czy watek dziala
     std::mutex mtx;               // Mutex do synchronizacji dostepu do client_count
     int pipe_fd[2];               // Pipe do komunikacji: [0] - czytanie, [1] - pisanie
+    int game_pipe_fd[2];          // Pipe do komunikacji z watkiem game_logic: [0] - czytanie, [1] - pisanie
     int epoll_fd;                 // Deskryptor epoll dla tego watku
     std::unordered_map<int, Client> clients;  // Mapa klientow: fd -> Client
+    std::thread game_thread;      // Watek do logiki gry
     
     WorkerThread() : client_count(0), is_running(false), epoll_fd(-1) {
         // Tworzymy pipe do komunikacji z watkiem
         if (pipe(pipe_fd) == -1) {
             perror("Blad tworzenia pipe");
+        }
+        // Tworzymy pipe do komunikacji z watkiem game_logic
+        if (pipe(game_pipe_fd) == -1) {
+            perror("Blad tworzenia game_pipe");
         }
     }
     
@@ -64,6 +74,8 @@ struct WorkerThread {
         // Zamykamy pipe przy usuwaniu
         if (pipe_fd[0] != -1) close(pipe_fd[0]);
         if (pipe_fd[1] != -1) close(pipe_fd[1]);
+        if (game_pipe_fd[0] != -1) close(game_pipe_fd[0]);
+        if (game_pipe_fd[1] != -1) close(game_pipe_fd[1]);
         if (epoll_fd != -1) close(epoll_fd);
     }
 };
@@ -71,6 +83,8 @@ struct WorkerThread {
 // Funkcja ktora bedzie wykonywana przez watek roboczy
 void worker_thread_function(std::shared_ptr<WorkerThread> worker);
 
+// Funkcja logiki gry 
+void game_logic(std::shared_ptr<WorkerThread> worker);
 
 /*Funkcja getaddrinfo_socket_bind_listen ma na celu utworzenie i skonfigurowanie gniazda serwera.
 
@@ -183,6 +197,9 @@ int main(int agrc, char* argv[]) {
             // Uruchamiamy watek
             new_worker->thread = std::thread(worker_thread_function, new_worker);
             
+            // Uruchamiamy watek game_logic
+            new_worker->game_thread = std::thread(game_logic, new_worker);
+            
             // Wysylamy ClientFD do nowego watku przez pipe
             if (write(new_worker->pipe_fd[1], &ClientFD, sizeof(ClientFD)) == -1) {
                 perror("Blad wysylania klienta do nowego watku przez pipe");
@@ -190,6 +207,9 @@ int main(int agrc, char* argv[]) {
                 new_worker->is_running = false;
                 if (new_worker->thread.joinable()) {
                     new_worker->thread.join();
+                }
+                if (new_worker->game_thread.joinable()) {
+                    new_worker->game_thread.join();
                 }
             } else {
                 // Dodajemy nowy watek do listy
@@ -225,6 +245,7 @@ int getaddrinfo_socket_bind_listen(int argc, const char *const *argv) {
     addrinfo *res;
     // Zmienna sprawdzajaco sukces funkcji getaddinfo
     int rv = getaddrinfo(nullptr, sport, &hints, &res);
+
     if (rv) 
         //error(1, 0, "getaddrinfo: %s", gai_strerror(rv));
         return -1;
@@ -269,6 +290,9 @@ void ctrl_c(int) {
             if (worker->thread.joinable()) {
                 worker->thread.join();
             }
+            if (worker->game_thread.joinable()) {
+                worker->game_thread.join();
+            }
         }
     }
     
@@ -277,6 +301,63 @@ void ctrl_c(int) {
     exit(0);
 }
 
+
+void game_logic(std::shared_ptr<WorkerThread> worker) {
+    std::cout << "Watek game_logic uruchomiony!" << std::endl;
+    
+    // Zbior znakow do losowania
+    const char chars[] = {'R', 'r', 'G', 'g', 'B', 'b', 'Y', 'y', '1', '2', '3', '4', '0'};
+    const int chars_count = sizeof(chars) / sizeof(chars[0]);
+    
+    // Generator losowych liczb
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, chars_count - 1);
+    
+    while (worker->is_running) {
+        // Generujemy macierz 20x20
+        std::ostringstream matrix_stream;
+        
+        for (int i = 0; i < GAME_GRID_SIZE; ++i) {
+            for (int j = 0; j < GAME_GRID_SIZE; ++j) {
+                matrix_stream << chars[dis(gen)];
+                if (j < GAME_GRID_SIZE - 1) {
+                    matrix_stream << " ";  // Spacja miedzy znakami
+                }
+            }
+            matrix_stream << "\n";  // Nowa linia po kazdym wierszu
+        }
+        matrix_stream << "\n";  // Dodatkowa linia na koniec macierzy
+        
+        std::string matrix = matrix_stream.str();
+        
+        // Wysylamy rozmiar macierzy, a potem sama macierz przez pipe
+        size_t matrix_size = matrix.size();
+        
+        // Najpierw wysylamy rozmiar
+        if (write(worker->game_pipe_fd[1], &matrix_size, sizeof(matrix_size)) == -1) {
+            if (errno != EPIPE) {  // Ignorujemy EPIPE (broken pipe) przy zamykaniu
+                perror("Blad wysylania rozmiaru macierzy przez game_pipe");
+            }
+            break;
+        }
+        
+        // Potem wysylamy sama macierz
+        if (write(worker->game_pipe_fd[1], matrix.c_str(), matrix_size) == -1) {
+            if (errno != EPIPE) {
+                perror("Blad wysylania macierzy przez game_pipe");
+            }
+            break;
+        }
+        
+        std::cout << "Wyslano macierz " << GAME_GRID_SIZE << "x" << GAME_GRID_SIZE << " (" << matrix_size << " bajtow)" << std::endl;
+        
+        // Czekamy 2 sekundy
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+    }
+    
+    std::cout << "Watek game_logic zakonczony!" << std::endl;
+}
 
 void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
     std::cout << "Watek roboczy uruchomiony!" << std::endl;
@@ -297,12 +378,20 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
         return;
     }
 
-    
+    // tworzymy nowy pipe do komunikacji worker - gamelogic i dodajemy go do epolla
+    epoll_event game_ev;
+    game_ev.events = EPOLLIN;
+    game_ev.data.fd = worker->game_pipe_fd[0];
+    if (epoll_ctl(worker->epoll_fd, EPOLL_CTL_ADD, worker->game_pipe_fd[0], &game_ev) == -1) {
+        perror("Blad dodawania game_pipe do epoll");
+        return;
+    }
+
     std::vector<epoll_event> events(MAX_EVENTS);
 
     //Petla naszego kochanego watku
     while (worker->is_running) {
-        // Czekamy na zdarzenia - mamy timeout 1000 zeby sprawdzac czy nasz watek jeszcze ma dzialac - przejscie przez cala petle
+        // czekamy na zdarzenia - mamy timeout 1000 zeby sprawdzac czy nasz watek jeszcze ma dzialac - przejscie przez cala petle
         int nfds = epoll_wait(worker->epoll_fd, events.data(), MAX_EVENTS, 1000);
         
         if (nfds == -1) {
@@ -317,15 +406,15 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                 int client_fd;
                 ssize_t n = read(worker->pipe_fd[0], &client_fd, sizeof(client_fd));
                 if (n == sizeof(client_fd)) {
-                    // Ustawienie socketu w tryb nieblokujacy (wymagane dla epoll)
+
+                    // ustawiamy w tryb nie blokujacy
                     int flags = fcntl(client_fd, F_GETFL, 0);
                     fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
 
-                    // Dodanie klienta do mapy -- nie wiem czy sie przyda ale to poki co tutaj zostawiam
+                    // Dodanie klienta do mapy
                     worker->clients.emplace(client_fd, Client(client_fd));
 
-                    // Rejestracja w epoll: czytanie (EPOLLIN) i pisanie (EPOLLOUT)
-                    // Uzywamy EPOLLET (Edge Triggered), aby uniknac busy-loop przy EPOLLOUT
+                    // Tworzenie epolli
                     epoll_event client_ev;
                     client_ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
                     client_ev.data.fd = client_fd;
@@ -338,7 +427,42 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                         worker->client_count--;
                     }
                 }
-            } 
+            }
+            // Obsluga danych z game_logic - odbiór macierzy
+            else if (events[i].data.fd == worker->game_pipe_fd[0]) {
+                size_t matrix_size;
+                ssize_t n = read(worker->game_pipe_fd[0], &matrix_size, sizeof(matrix_size));
+                
+                if (n == sizeof(matrix_size)) {
+                    // Buforek na macierz
+                    std::vector<char> matrix_buffer(matrix_size);
+                    
+                    // Czytanie macierzy
+                    size_t total_read = 0;
+                    while (total_read < matrix_size) {
+                        ssize_t bytes_read = read(worker->game_pipe_fd[0], 
+                                                  matrix_buffer.data() + total_read, 
+                                                  matrix_size - total_read);
+                        if (bytes_read <= 0) break;
+                        total_read += bytes_read;
+                    }
+                    
+                    if (total_read == matrix_size) {
+                        std::string matrix(matrix_buffer.begin(), matrix_buffer.end());
+                        std::cout << "Odebrano macierz z game_logic, rozsylam do " << worker->clients.size() << " klientow" << std::endl;
+                        
+                        // Wysylamy macierz do wszystkich klientow
+                        for (auto& [fd, client] : worker->clients) {
+                            ssize_t sent = send(fd, matrix.c_str(), matrix.size(), MSG_DONTWAIT | MSG_NOSIGNAL);
+                            if (sent == -1) {
+                                if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                                    std::cout << "Blad wysylania do klienta " << fd << std::endl;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             // Obsluga klientow
             else {
                 int fd = events[i].data.fd;
@@ -362,18 +486,9 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                             break;
                         } else {
                             it->second.buffer.append(buffer, count);
+                            // Wyswietlenie z bufora w terminalu
+                            std::cout.write(buffer, count);
                         }
-                        // Wyswietlenie z bufora w terminalu
-                        std::cout.write(buffer, count);
-                    }
-                }
-
-                // Wysylanie danych - testowa wersja wysylajaca jeden znak
-                if (!close_conn && (events[i].events & EPOLLOUT)) {
-                    char ch[] = "X\n"; // Dowolny znak
-                    ssize_t sent = send(fd, &ch, 1, MSG_DONTWAIT | MSG_NOSIGNAL);
-                    if (sent == -1) {
-                        if (errno != EAGAIN && errno != EWOULDBLOCK) close_conn = true;
                     }
                 }
 
