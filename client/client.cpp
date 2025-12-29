@@ -2,6 +2,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 using namespace std;
 
@@ -13,25 +14,28 @@ bool connectToServer(const char* ip, int port) {
         return false;
     }
 
-    sockaddr_in addr {};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(3000);
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    bind(fd, (sockaddr*) &addr, sizeof(addr));
 
     sockaddr_in serv_addr {};
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(port);
-    serv_addr.sin_addr.s_addr = inet_addr(ip);
 
-    if (connect(fd, (sockaddr*) &serv_addr, sizeof(serv_addr)) < 0) {
-        perror("connection error");
+    if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) <= 0) {
+        perror("bad ip");
+        close(fd);
         return false;
     }
 
-    close(fd);
+    int ret = connect(fd, (sockaddr*)&serv_addr, sizeof(serv_addr));
+    if (ret < 0) {
+        if (errno != EINPROGRESS) {
+            perror("connection error");
+            close(fd);
+            return false;
+        }
+    }
+
     shutdown(fd, SHUT_RDWR);
+    close(fd);
 
     return true;
 }

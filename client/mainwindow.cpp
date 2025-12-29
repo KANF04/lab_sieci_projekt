@@ -13,7 +13,8 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-
+    ui->serverMsgLabel->setStyleSheet("color: red;");
+    ui->serverMsgLabel->hide();
     connect(ui->joinButton, &QPushButton::clicked, this, &MainWindow::onJoinButtonClicked);
 }
 
@@ -24,12 +25,23 @@ void MainWindow::onJoinButtonClicked() {
 
     int port = ui->portLineEdit->text().toInt();
 
-    if (connectToServer(ip, port) == true) {
+    if (port <= 0 || port >= 62535) {
+        ui->serverMsgLabel->setText("Connection error: Wrong port");
+        ui->serverMsgLabel->show();
+    }
+    else {
 
-        this->hide();
+        if (connectToServer(ip, port) == true) {
 
-        GameWindow *win = new GameWindow();
-        win->show();
+            this->hide();
+
+            GameWindow *win = new GameWindow();
+            win->show();
+        }
+        else {
+            ui->serverMsgLabel->setText("Connection error: Wrong IP or port");
+            ui->serverMsgLabel->show();
+        }
     }
 }
 
