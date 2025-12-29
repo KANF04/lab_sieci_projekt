@@ -30,12 +30,12 @@ void MainWindow::onJoinButtonClicked() {
         ui->serverMsgLabel->show();
     }
     else {
-
-        if (connectToServer(ip, port) == true) {
+        int fd = connectToServer(ip, port);
+        if (fd >= 0) {
 
             this->hide();
 
-            GameWindow *win = new GameWindow();
+            GameWindow *win = new GameWindow(fd);
             win->show();
         }
         else {
