@@ -34,14 +34,14 @@ jobs:
     - name: Build server
       run: g++ ./server/server.cpp -o server
 
-    - name: Upload client artefact
+    - name: Upload client artifact
       uses: actions/upload-artifact@v4
       with:
         name: app
         path: build/
         
-    - name: Upload server artefact
-      uses: actions/upload-artefact@v4
+    - name: Upload server artifact
+      uses: actions/upload-artifact@v4
       with:
         name: server
         path: server/
