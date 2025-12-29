@@ -12,21 +12,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: RepoCheckout
-      - uses: actions/checkout@v4
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v2
-        with:
-          version: '6.6.3'
-          host: 'linux'
-          target: 'desktop'
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake
-
-      - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_PREFIX_PATH=$HOME/Qt/6.6.3/gcc_64
-
-      - name: Build project
-        run: cmake --build build --config Release
+    - name: RepoCheckout
+      uses: actions/checkout@v4
+  
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v2
+      with:
+        version: '6.6.3'
+        host: 'linux'
+        target: 'desktop'
+  
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+  
+    - name: Configure CMake
+      run: cmake -S . -B build -DCMAKE_PREFIX_PATH=$HOME/Qt/6.6.3/gcc_64
+  
+    - name: Build project
+      run: cmake --build build --config Release
