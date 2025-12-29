@@ -28,11 +28,20 @@ jobs:
     - name: Configure CMake
       run: cmake -S ./client -B build -DCMAKE_PREFIX_PATH=$HOME/Qt/6.6.3/gcc_64
   
-    - name: Build project
+    - name: Build client
       run: cmake --build build --config Release
 
-    - name: Upload artifacts
+    - name: Build server
+      run: g++ ./server/server.cpp -o server
+
+    - name: Upload client artefact
       uses: actions/upload-artifact@v4
       with:
         name: app
         path: build/
+        
+    - name: Upload server artefact
+      uses: actions/upload-artefact@v4
+      with:
+        name: server
+        path: server/
