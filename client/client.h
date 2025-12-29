@@ -4,7 +4,10 @@
 
 using namespace std;
 
-bool connectToServer(const char* ip, int port);
+int connectToServer(const char* ip, int port);
 
+int sendMove(int fd, const char* key);
+
+void shut_conn(int fd);
 
 #endif // CLIENT_H
