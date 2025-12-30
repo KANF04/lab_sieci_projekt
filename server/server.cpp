@@ -11,20 +11,15 @@ Co oznacza ze kazdy nowy watek bedzie tworzyl minimum 2 nowe watki do komunikacj
 #include <unistd.h>
 #include <unordered_set>
 
-#include <poll.h>
 #include <sys/epoll.h>
 #include <thread>
 #include <mutex>
 #include <vector>
 #include <memory>
 #include <unordered_map>
-#include <fcntl.h>
 
-/* Dla dodania maxymalnego limitu MAX_INT*/
-#include <iostream>
-#include <limits>
-
-#include <cstdlib>
+#include <iostream> // Dla std::cout
+#include <limits>   // Dla std::numeric_limits
 #include <cstring>
 #include <errno.h>
 #include <string>
@@ -32,59 +27,16 @@ Co oznacza ze kazdy nowy watek bedzie tworzyl minimum 2 nowe watki do komunikacj
 #include <chrono>
 #include <sstream>
 
-/* Zmienna przechowujaca maksymalnego inta*/
+// Nowe include'y
+#include "helpers.h" // Zawiera Client, WorkerThread, GAME_GRID_SIZE, MAX_CLIENTS_PER_THREAD, etc.
+#include "game_logic.h"  // Deklaracja funkcji game_logic
+#include <fcntl.h>       // Dla fcntl
+
 #define MAX_INT std::numeric_limits<int>::max()
-#define MAX_CLIENTS_PER_THREAD 4
-#define MAX_EVENTS 12
-#define BUFFER_SIZE 1024
-#define GAME_GRID_SIZE 20
 
-// Struktura reprezentujaca pojedynczego klienta
-struct Client {
-    int fd;                       // Deskryptor socketa klienta
-    std::string buffer;           // Bufor na dane od klienta
-    
-    Client(int socket_fd) : fd(socket_fd) {}
-};
-
-// Struktura reprezentujaca watek roboczy
-struct WorkerThread {
-    std::thread thread;           // Sam watek
-    int client_count;             // Liczba klientow obslugianych przez ten watek
-    bool is_running;              // Czy watek dziala
-    std::mutex mtx;               // Mutex do synchronizacji dostepu do client_count
-    int pipe_fd[2];               // Pipe do komunikacji: [0] - czytanie, [1] - pisanie
-    int game_pipe_fd[2];          // Pipe do komunikacji z watkiem game_logic: [0] - czytanie, [1] - pisanie
-    int epoll_fd;                 // Deskryptor epoll dla tego watku
-    std::unordered_map<int, Client> clients;  // Mapa klientow: fd -> Client
-    std::thread game_thread;      // Watek do logiki gry
-    
-    WorkerThread() : client_count(0), is_running(false), epoll_fd(-1) {
-        // Tworzymy pipe do komunikacji z watkiem
-        if (pipe(pipe_fd) == -1) {
-            perror("Blad tworzenia pipe");
-        }
-        // Tworzymy pipe do komunikacji z watkiem game_logic
-        if (pipe(game_pipe_fd) == -1) {
-            perror("Blad tworzenia game_pipe");
-        }
-    }
-    
-    ~WorkerThread() {
-        // Zamykamy pipe przy usuwaniu
-        if (pipe_fd[0] != -1) close(pipe_fd[0]);
-        if (pipe_fd[1] != -1) close(pipe_fd[1]);
-        if (game_pipe_fd[0] != -1) close(game_pipe_fd[0]);
-        if (game_pipe_fd[1] != -1) close(game_pipe_fd[1]);
-        if (epoll_fd != -1) close(epoll_fd);
-    }
-};
 
 // Funkcja ktora bedzie wykonywana przez watek roboczy
 void worker_thread_function(std::shared_ptr<WorkerThread> worker);
-
-// Funkcja logiki gry 
-void game_logic(std::shared_ptr<WorkerThread> worker);
 
 /*Funkcja getaddrinfo_socket_bind_listen ma na celu utworzenie i skonfigurowanie gniazda serwera.
 
@@ -139,12 +91,12 @@ int main(int agrc, char* argv[]) {
     while (true)
     {
         // Zmienna przechowujaca informacje o kliencie
-        sockaddr_storage clientAddr{0};
+        sockaddr_storage clientAddr{};
         socklen_t clientAddrSize = sizeof(clientAddr);
 
         // akceptujemy nowego klienta 
 
-        // Zmienna przechowujaca pojedynczy file descryptor clienta
+        // Zmienna przechowujaca pojedynczy file descryptor clienta - moze sie blokowac
         int ClientFD = accept(servFd, (sockaddr *)&clientAddr, &clientAddrSize);
         if (ClientFD == -1) {
             perror("Blad w accept ;(");
@@ -274,89 +226,23 @@ int getaddrinfo_socket_bind_listen(int argc, const char *const *argv) {
 }
 
 void ctrl_c(int) {
-    const char quitMsg[] = "[Server shutting down. Bye!]\n";
     
     // Zamykamy wszystkich klientow
     for (int clientFd : clientFds) {
         shutdown(clientFd, SHUT_RDWR);
         close(clientFd); 
     }
-    
     // Zamykamy wszystkie watki robocze
     {
         std::lock_guard<std::mutex> lock(workers_mutex);
         for (auto& worker : workers) {
             worker->is_running = false;
-            if (worker->thread.joinable()) {
-                worker->thread.join();
-            }
-            if (worker->game_thread.joinable()) {
-                worker->game_thread.join();
-            }
         }
     }
     
     close(servFd);
     printf("Closing server\n");
     exit(0);
-}
-
-
-void game_logic(std::shared_ptr<WorkerThread> worker) {
-    std::cout << "Watek game_logic uruchomiony!" << std::endl;
-    
-    // Zbior znakow do losowania
-    const char chars[] = {'R', 'r', 'G', 'g', 'B', 'b', 'Y', 'y', '1', '2', '3', '4', '0'};
-    const int chars_count = sizeof(chars) / sizeof(chars[0]);
-    
-    // Generator losowych liczb
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, chars_count - 1);
-    
-    while (worker->is_running) {
-        // Generujemy macierz 20x20
-        std::ostringstream matrix_stream;
-        
-        for (int i = 0; i < GAME_GRID_SIZE; ++i) {
-            for (int j = 0; j < GAME_GRID_SIZE; ++j) {
-                matrix_stream << chars[dis(gen)];
-                if (j < GAME_GRID_SIZE - 1) {
-                    matrix_stream << " ";  // Spacja miedzy znakami
-                }
-            }
-            matrix_stream << "\n";  // Nowa linia po kazdym wierszu
-        }
-        matrix_stream << "\n";  // Dodatkowa linia na koniec macierzy
-        
-        std::string matrix = matrix_stream.str();
-        
-        // Wysylamy rozmiar macierzy, a potem sama macierz przez pipe
-        size_t matrix_size = matrix.size();
-        
-        // Najpierw wysylamy rozmiar
-        if (write(worker->game_pipe_fd[1], &matrix_size, sizeof(matrix_size)) == -1) {
-            if (errno != EPIPE) {  // Ignorujemy EPIPE (broken pipe) przy zamykaniu
-                perror("Blad wysylania rozmiaru macierzy przez game_pipe");
-            }
-            break;
-        }
-        
-        // Potem wysylamy sama macierz
-        if (write(worker->game_pipe_fd[1], matrix.c_str(), matrix_size) == -1) {
-            if (errno != EPIPE) {
-                perror("Blad wysylania macierzy przez game_pipe");
-            }
-            break;
-        }
-        
-        std::cout << "Wyslano macierz " << GAME_GRID_SIZE << "x" << GAME_GRID_SIZE << " (" << matrix_size << " bajtow)" << std::endl;
-        
-        // Czekamy 2 sekundy
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-    }
-    
-    std::cout << "Watek game_logic zakonczony!" << std::endl;
 }
 
 void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
@@ -392,7 +278,7 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
     //Petla naszego kochanego watku
     while (worker->is_running) {
         // czekamy na zdarzenia - mamy timeout 1000 zeby sprawdzac czy nasz watek jeszcze ma dzialac - przejscie przez cala petle
-        int nfds = epoll_wait(worker->epoll_fd, events.data(), MAX_EVENTS, 1000);
+        int nfds = epoll_wait(worker->epoll_fd, events.data(), MAX_EVENTS, 0);
         
         if (nfds == -1) {
             if (errno == EINTR) continue;
@@ -425,6 +311,13 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                         worker->clients.erase(client_fd);
                         std::lock_guard<std::mutex> lock(worker->mtx);
                         worker->client_count--;
+                    } else {
+                        // DODAJ TO: Wysyłamy komunikat do game_logic o nowym graczu
+                        GameMessage msg;
+                        msg.type = MessageType::NEW_PLAYER;
+                        msg.client_fd = client_fd;
+                        write(worker->control_pipe_fd[1], &msg, sizeof(msg));
+                        std::cout << "Wyslano komunikat NEW_PLAYER do game_logic (fd=" << client_fd << ")" << std::endl;
                     }
                 }
             }
@@ -441,23 +334,54 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                     size_t total_read = 0;
                     while (total_read < matrix_size) {
                         ssize_t bytes_read = read(worker->game_pipe_fd[0], 
-                                                  matrix_buffer.data() + total_read, 
-                                                  matrix_size - total_read);
+                                                matrix_buffer.data() + total_read, 
+                                                matrix_size - total_read);
                         if (bytes_read <= 0) break;
                         total_read += bytes_read;
                     }
                     
                     if (total_read == matrix_size) {
                         std::string matrix(matrix_buffer.begin(), matrix_buffer.end());
-                        std::cout << "Odebrano macierz z game_logic, rozsylam do " << worker->clients.size() << " klientow" << std::endl;
+                        std::cout << "Odebrano macierz z game_logic (" << matrix_size 
+                                << " bajtow), rozsylam do " << worker->clients.size() 
+                                << " klientow" << std::endl;
                         
-                        // Wysylamy macierz do wszystkich klientow
+                        // Wysylamy macierz do wszystkich klientow z poprawną obsługą błędów
                         for (auto& [fd, client] : worker->clients) {
-                            ssize_t sent = send(fd, matrix.c_str(), matrix.size(), MSG_DONTWAIT | MSG_NOSIGNAL);
-                            if (sent == -1) {
-                                if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                                    std::cout << "Blad wysylania do klienta " << fd << std::endl;
+                            size_t total_sent = 0;
+                            const char* data = matrix.c_str();
+                            
+                            // Wysyłamy w pętli, obsługując częściowe wysyłki
+                            while (total_sent < matrix_size) {
+                                ssize_t sent = send(fd, data + total_sent, 
+                                                matrix_size - total_sent, 
+                                                MSG_NOSIGNAL);
+                                
+                                if (sent == -1) {
+                                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                                        // Bufor pełny, czekamy chwilę
+                                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                                        continue;
+                                    } else {
+                                        // Prawdziwy błąd
+                                        std::cout << "Blad wysylania do klienta " << fd 
+                                                << ": " << strerror(errno) << std::endl;
+                                        break;
+                                    }
+                                } else if (sent == 0) {
+                                    std::cout << "Polaczenie zamkniete dla klienta " << fd << std::endl;
+                                    break;
+                                } else {
+                                    total_sent += sent;
                                 }
+                            }
+                            
+                            if (total_sent == matrix_size) {
+                                std::cout << "Wyslano macierz do klienta " << fd 
+                                        << " (" << total_sent << " bajtow)" << std::endl;
+                            } else {
+                                std::cout << "Wyslano tylko " << total_sent << "/" 
+                                        << matrix_size << " bajtow do klienta " << fd << std::endl;
                             }
                         }
                     }
@@ -473,27 +397,50 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
 
                 // Czytanie danych od klienta
                 if (events[i].events & EPOLLIN) {
-                    char buffer[BUFFER_SIZE];
-                    // Czytamy tak dlugo az wszystko co mozliwe zostalo odczytane
-                    
-                    while (true) {
-                        ssize_t count = read(fd, buffer, BUFFER_SIZE);
-                        if (count == -1) {
-                            if (errno != EAGAIN && errno != EWOULDBLOCK) close_conn = true;
-                            break;
-                        } else if (count == 0) {
+                    char temp_buffer[BUFFER_SIZE]; // Tymczasowy bufor do odczytu z gniazda
+                    ssize_t bytes_read = read(fd, temp_buffer, BUFFER_SIZE);
+
+                    if (bytes_read == -1) {
+                        if (errno != EAGAIN && errno != EWOULDBLOCK) {
                             close_conn = true;
-                            break;
-                        } else {
-                            it->second.buffer.append(buffer, count);
-                            // Wyswietlenie z bufora w terminalu
-                            std::cout.write(buffer, count);
+                        }
+                    } else if (bytes_read == 0) {
+                        close_conn = true;
+                    } else {
+                        // Dodaj odczytane dane do bufora klienta
+                        it->second.buffer.append(temp_buffer, bytes_read);
+
+                        // Przetwarzaj znaki z bufora klienta
+                        while (!it->second.buffer.empty()) {
+                            char received_char = it->second.buffer.front(); // pobieramy znaj
+                            it->second.buffer.erase(0, 1); // usuwamy go od buffora
+
+                            if (received_char == 'a' || received_char == 'd' || received_char == 'w') {
+                                GameMessage msg;
+                                msg.type = MessageType::PLAYER_MOVE;
+                                msg.client_fd = fd;
+                                msg.move_data = received_char;
+                                write(worker->control_pipe_fd[1], &msg, sizeof(msg));
+                                if (DEBUGGING){
+                                std::cout << "Wyslano komunikat PLAYER_MOVE do game_logic (fd=" << fd << ", move=" << received_char << ")" << std::endl;
+                                }
+                            } else {
+                                // nie potrzebujemy juz tego ale zostawiam do debuggowania
+                               // std::cout << "Odebrano nieznany znak od klienta " << fd << ": " << received_char << std::endl;
+                            }
                         }
                     }
                 }
 
                 // Obsluga rozlaczenia lub bledu
                 if (close_conn || (events[i].events & (EPOLLERR | EPOLLHUP))) {
+                    // Wysyłamy komunikat do game_logic o usunięciu gracza
+                    GameMessage msg;
+                    msg.type = MessageType::REMOVE_PLAYER;
+                    msg.client_fd = fd;
+                    write(worker->control_pipe_fd[1], &msg, sizeof(msg));
+                    std::cout << "Wyslano komunikat REMOVE_PLAYER do game_logic (fd=" << fd << ")" << std::endl;
+                    
                     epoll_ctl(worker->epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
                     std::cout<<"\nKlient sie odlaczyl. No poprostu tragedia!\n";
                     close(fd);
@@ -507,4 +454,27 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
     }
     
     std::cout << "Watek roboczy zakonczony!" << std::endl;
+
+    // konczymy watki jesli jeszcze dzialaja
+
+    if (worker->game_thread.joinable()) {
+        worker->game_thread.join();
+        std::cout << "Watek game_logic zostal polaczony z watkiem roboczym." << std::endl;
+    }
+
+    // usuniecie watku z listy watkow
+    {
+        std::lock_guard<std::mutex> lock(workers_mutex);
+        for (auto it = workers.begin(); it != workers.end(); ++it) {
+            if (*it == worker) {
+                if (worker->thread.joinable()) {
+                    worker->thread.detach();
+                }
+                workers.erase(it);
+                std::cout << "Usunieto watek roboczy. Liczba watkow: " << workers.size() << std::endl;
+                break;
+            }
+        }
+    }
+
 }
