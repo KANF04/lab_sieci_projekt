@@ -7,6 +7,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include "grid.h"
 
 using namespace std;
 
@@ -73,6 +74,7 @@ int connectToServer(const char* ip, int port) {
 
 void sendMove(int fd, const char* key) {
     write(fd, key, strlen(key));
+    write(1,key, strlen(key));
 }
 
 void shut_conn(int fd) {
@@ -80,7 +82,7 @@ void shut_conn(int fd) {
     shutdown(fd, SHUT_RDWR);
 }
 
-void printRecvMsg(int fd) {
+void printRecvMsg(int fd, GameWindow *window) {
     static vector<char> matrixBuffer(4096);
 
     ssize_t n = read(fd, matrixBuffer.data(), matrixBuffer.size());
@@ -91,5 +93,6 @@ void printRecvMsg(int fd) {
 
     vector<vector<string>> matrix = mkMatrix(matrixBuffer, n); // makes matrix from recieved data
 
-    cout << "matrix[0][0] = " << matrix[0][0] << endl;
+    window->setMatrix(matrix);
+    cout << "matrix[0][0] = " << matrix[0][0] << "costam" <<endl;
 }
