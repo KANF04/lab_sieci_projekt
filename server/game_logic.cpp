@@ -353,9 +353,9 @@ void player_move(Player& player) {
         break;
     case 'r': // przypadek gdy porusza sie w prawo
         if (player.next_move == 'a') { //skret w lewo
-            player.direction = 'd';
-        } else if (player.next_move == 'd') { // skret w prawo
             player.direction = 'u';
+        } else if (player.next_move == 'd') { // skret w prawo
+            player.direction = 'd';
         }
         break;
     default:

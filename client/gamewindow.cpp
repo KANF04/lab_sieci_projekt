@@ -4,6 +4,11 @@
 #include "client.h"
 #include "mainwindow.h"
 #include <QSocketNotifier>
+#include <string>
+#include <iostream>
+#include <vector>
+
+using namespace std;
 
 GameWindow::GameWindow(int fd, QWidget *parent)
     : QMainWindow(parent)
@@ -11,17 +16,21 @@ GameWindow::GameWindow(int fd, QWidget *parent)
     , fd(fd)
 {
     ui->setupUi(this);
+
+    this->setFocusPolicy(Qt::StrongFocus); // focus on window
+    this->setFocus();
+
     connect(ui->quitButton, &QPushButton::clicked, this, &GameWindow::onQuitButtonClicked);
     extern void printRecvMsg(int fd);
 
     notifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
     connect(notifier, &QSocketNotifier::activated, this, [this]() {
-        printRecvMsg(this->fd);
+        extern void printRecvMsg(int fd, GameWindow *window);
+        printRecvMsg(this->fd, this);
     });
 
     this->setFixedSize(1600, 1200);
-
-    Grid *grid = new Grid(this);
+    grid = new Grid(this);
     grid->setGeometry(100, 100, 800, 800);
     grid->show();
 }
@@ -33,6 +42,11 @@ void GameWindow::onQuitButtonClicked() {
 
     MainWindow *win = new MainWindow();
     win->show();
+}
+
+void GameWindow::setMatrix(const vector<vector<string>>& newMatrix)
+{
+    grid->setMatrix(newMatrix);
 }
 
 GameWindow::~GameWindow()
