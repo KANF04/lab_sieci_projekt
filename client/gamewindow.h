@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QKeyEvent>
 #include "client.h"
+#include <QSocketNotifier>
 
 namespace Ui {
 class GameWindow;
