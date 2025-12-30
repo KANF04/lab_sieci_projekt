@@ -5,8 +5,40 @@
 #include <fcntl.h>
 #include "gamewindow.h"
 #include <iostream>
+#include <sstream>
+#include <vector>
 
 using namespace std;
+
+/*----------------------------------------------------LOGIC FUNCTIONS----------------------------------------------------*/
+
+vector<vector<string>> mkMatrix(const vector<char> &matrixBuffer, ssize_t n) {
+    string text(matrixBuffer.data(), n);
+
+    vector<vector<string>> matrix;
+
+    string line;
+    stringstream all(text);
+
+    while (getline(all, line)) {
+        if(line.empty())
+            continue;
+
+        stringstream ls(line);
+        string token;
+        vector<string> row;
+
+        while (ls >> token) {
+            row.push_back(token);
+        }
+
+        matrix.push_back(row);
+    }
+
+    return matrix;
+}
+
+/*----------------------------------------------------NETWORK FUNCTIONS----------------------------------------------------*/
 
 int connectToServer(const char* ip, int port) {
 
@@ -49,13 +81,15 @@ void shut_conn(int fd) {
 }
 
 void printRecvMsg(int fd) {
-    static bool readingMatrix = false;
-    static vector<char> matrixBuffer;
+    static vector<char> matrixBuffer(4096);
 
+    ssize_t n = read(fd, matrixBuffer.data(), matrixBuffer.size());
+    if (n <= 0)
+        return;
 
-    ssize_t n = read(fd, &matrixBuffer, sizeof(matrixBuffer));
-    if (n > 0) {
-        write(1, &matrixBuffer, sizeof(matrixBuffer));
-    }
+    write(1, matrixBuffer.data(), n); // prints whole matrix in terminal
+
+    vector<vector<string>> matrix = mkMatrix(matrixBuffer, n); // makes matrix from recieved data
+
+    cout << "matrix[0][0] = " << matrix[0][0] << endl;
 }
-
