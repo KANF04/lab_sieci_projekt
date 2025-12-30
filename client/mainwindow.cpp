@@ -33,7 +33,7 @@ void MainWindow::onJoinButtonClicked() {
         int fd = connectToServer(ip, port);
         if (fd >= 0) {
 
-            this->hide();
+            close();
 
             GameWindow *win = new GameWindow(fd);
             win->show();

@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "gamewindow.h"
+#include <iostream>
 
 using namespace std;
 
@@ -38,9 +39,8 @@ int connectToServer(const char* ip, int port) {
     return fd;
 }
 
-int sendMove(int fd, const char* key) {
-     int msg = write(fd, key, strlen(key));
-     return msg;
+void sendMove(int fd, const char* key) {
+    write(fd, key, strlen(key));
 }
 
 void shut_conn(int fd) {
@@ -48,4 +48,14 @@ void shut_conn(int fd) {
     shutdown(fd, SHUT_RDWR);
 }
 
+void printRecvMsg(int fd) {
+    static bool readingMatrix = false;
+    static vector<char> matrixBuffer;
+
+
+    ssize_t n = read(fd, &matrixBuffer, sizeof(matrixBuffer));
+    if (n > 0) {
+        write(1, &matrixBuffer, sizeof(matrixBuffer));
+    }
+}
 
