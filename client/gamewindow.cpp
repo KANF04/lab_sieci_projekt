@@ -2,6 +2,8 @@
 #include "ui_gamewindow.h"
 #include "grid.h"
 #include "client.h"
+#include "mainwindow.h"
+#include <QSocketNotifier>
 
 GameWindow::GameWindow(int fd, QWidget *parent)
     : QMainWindow(parent)
@@ -10,6 +12,13 @@ GameWindow::GameWindow(int fd, QWidget *parent)
 {
     ui->setupUi(this);
     connect(ui->quitButton, &QPushButton::clicked, this, &GameWindow::onQuitButtonClicked);
+    extern void printRecvMsg(int fd);
+
+    notifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
+    connect(notifier, &QSocketNotifier::activated, this, [this]() {
+        printRecvMsg(this->fd);
+    });
+
     this->setFixedSize(1600, 1200);
 
     Grid *grid = new Grid(this);
@@ -18,7 +27,12 @@ GameWindow::GameWindow(int fd, QWidget *parent)
 }
 
 void GameWindow::onQuitButtonClicked() {
+    notifier->setEnabled(false);
     shut_conn(fd);
+    close();
+
+    MainWindow *win = new MainWindow();
+    win->show();
 }
 
 GameWindow::~GameWindow()

@@ -21,6 +21,7 @@ private:
     Ui::GameWindow *ui;
     int fd;
     void onQuitButtonClicked();
+    QSocketNotifier* notifier;
 
 protected:
     void keyPressEvent(QKeyEvent *event) override {

@@ -6,7 +6,7 @@ using namespace std;
 
 int connectToServer(const char* ip, int port);
 
-int sendMove(int fd, const char* key);
+void sendMove(int fd, const char* key);
 
 void shut_conn(int fd);
 
