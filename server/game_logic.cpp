@@ -1,4 +1,5 @@
 #include "game_logic.h"
+#include "player.h" 
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,33 +10,22 @@
 #include <random>
 #include <algorithm>
 
-// Macierz w prostej postaci do edycji
-std::vector<std::vector<char>> matrix_grid;
-
-// Lista graczy
-std::vector<Player> players;
-
-// Dostępne kolory i ID
+// Tylko stałe pozostają globalne
 const std::vector<char> available_colors = {'R', 'B', 'G', 'Y'};
 const std::vector<char> small_colors = {'r', 'b', 'g', 'y'};
-std::vector<bool> color_used = {false, false, false, false};
-
-// Implementacja konstruktora Player
-Player::Player() : cfd(-1), row_position(-1), col_position(-1), 
-                   color('\0'), player_id(-1), coloring(false), next_move('\0'), direction('u'), is_alive(true) { }
 
 // Funkcja do tworzenia struktury gracza
-Player create_player(int fd) {
+Player create_player(int fd, std::shared_ptr<WorkerThread> worker) {
     Player new_player;
     new_player.cfd = fd;
     new_player.coloring = false;
     
     // Znajdź pierwszy wolny kolor i przypisz odpowiednie id gracza
     for (size_t i = 0; i < available_colors.size(); ++i) {
-        if (!color_used[i]) {
+        if (!worker->color_used[i]) {
             new_player.color = available_colors[i];
             new_player.player_id = i + 1;
-            color_used[i] = true;
+            worker->color_used[i] = true;
             break;
         }
     }
@@ -44,9 +34,9 @@ Player create_player(int fd) {
 }
 
 // Funkcja do zwalniania koloru gracza
-void release_player_color(const Player& player) {
+void release_player_color(const Player& player, std::shared_ptr<WorkerThread> worker) {
     if (player.player_id >= 1 && player.player_id <= 4) {
-        color_used[player.player_id - 1] = false;
+        worker->color_used[player.player_id - 1] = false;
     }
 }
 
@@ -72,40 +62,40 @@ std::string matrix_to_string(const std::vector<std::vector<char>>& grid) {
 }
 
 // Funkcja usuwająca gracza z macierzy
-bool remove_player_from_grid(int player_id) {
-    if (matrix_grid.empty()) return false;
+bool remove_player_from_grid(int player_id, std::shared_ptr<WorkerThread> worker) {
+    if (worker->matrix_grid.empty()) return false;
     
     // Znajdź gracza w vectorze
-    auto it = std::find_if(players.begin(), players.end(), 
+    auto it = std::find_if(worker->players.begin(), worker->players.end(), 
                           [player_id](const Player& p) { return p.player_id == player_id; });
     
-    if (it == players.end()) return false;
+    if (it == worker->players.end()) return false;
     
     char player_symbol = '0' + player_id;
     char player_color = it->color;
     
     // Usuwamy pola gracza z macierzy (zamieniamy na '0')
-    int n = matrix_grid.size();
-    int m = matrix_grid[0].size();
+    int n = worker->matrix_grid.size();
+    int m = worker->matrix_grid[0].size();
     
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < m; ++j) {
             // Usuwamy symbol gracza
-            if (matrix_grid[i][j] == player_symbol) {
-                matrix_grid[i][j] = '0';
+            if (worker->matrix_grid[i][j] == player_symbol) {
+                worker->matrix_grid[i][j] = '0';
             }
             // Opcjonalnie: usuwamy też kolor gracza (jeśli chcesz)
-            // else if (matrix_grid[i][j] == player_color) {
-            //     matrix_grid[i][j] = '0';
+            // else if (worker->matrix_grid[i][j] == player_color) {
+            //     worker->matrix_grid[i][j] = '0';
             // }
         }
     }
     
     // Zwalniamy kolor gracza
-    release_player_color(*it);
+    release_player_color(*it, worker);
     
     // Usuwamy gracza z vectora
-    players.erase(it);
+    worker->players.erase(it);
     
     std::cout << "Gracz " << player_id << " zostal usuniety z gry" << std::endl;
     return true;
@@ -115,9 +105,8 @@ bool remove_player_from_grid(int player_id) {
 void game_logic(std::shared_ptr<WorkerThread> worker) {
     std::cout << "Watek game_logic uruchomiony!" << std::endl;
     
-    // Inicjalizujemy macierz 20x20 w prostej postaci
-    matrix_grid.resize(GAME_GRID_SIZE, std::vector<char>(GAME_GRID_SIZE, '0'));
-    //Tworzymy zmienna ktora mierzy czas
+    // Macierz jest już zainicjalizowana w konstruktorze WorkerThread
+    // Tworzymy zmienną która mierzy czas
     auto start_time = std::chrono::steady_clock::now();
     
     while (worker->is_running) {
@@ -142,20 +131,20 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                         std::cout << "Game Logic: Dodaje nowego gracza (fd=" << msg.client_fd << ")" << std::endl;
                         
                         // Tworzymy nowego gracza
-                        Player new_player = create_player(msg.client_fd);
+                        Player new_player = create_player(msg.client_fd, worker);
                         
                         if (new_player.player_id != -1) {
                             // Próbujemy umieścić gracza na planszy
-                            int result = matrix_place_player(new_player); // Przekazujemy new_player przez referencję
+                            int result = matrix_place_player(new_player, worker);
                             
                             if (result == 1) {
-                                players.push_back(new_player);
+                                worker->players.push_back(new_player);
                                 std::cout << "Gracz " << new_player.player_id 
                                          << " (kolor: " << new_player.color 
                                          << ") zostal dodany do gry!" << std::endl;
                             } else {
                                 std::cout << "Nie udalo sie umiescic gracza na planszy!" << std::endl;
-                                release_player_color(new_player);
+                                release_player_color(new_player, worker);
                             }
                         } else {
                             std::cout << "Brak wolnych kolorow dla gracza!" << std::endl;
@@ -167,15 +156,15 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                         std::cout << "Game Logic: Usuwam gracza (fd=" << msg.client_fd << ")" << std::endl;
                         
                         // Znajdź gracza po fd
-                        auto it = std::find_if(players.begin(), players.end(),
+                        auto it = std::find_if(worker->players.begin(), worker->players.end(),
                                              [msg](const Player& p) { return p.cfd == msg.client_fd; });
                         
-                        if (it != players.end()) {
+                        if (it != worker->players.end()) {
                             int player_id = it->player_id;
-                            remove_player_from_grid(player_id);
+                            remove_player_from_grid(player_id, worker);
                         }
                         // sprawdzamy czy liczba graczy jest rowna 0. jesli jest to zamykamy caly watek
-                        if (players.size() == 0) {
+                        if (worker->players.size() == 0) {
                             worker->is_running = false;
                             return;
                         }
@@ -186,10 +175,10 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                         std::cout << "Game Logic: Otrzymano ruch gracza (fd=" << msg.client_fd << ", move=" << msg.move_data << ")" << std::endl;
                         
                         // Znajdź gracza po deskryptorze pliku (fd)
-                        auto it = std::find_if(players.begin(), players.end(),
+                        auto it = std::find_if(worker->players.begin(), worker->players.end(),
                                              [msg](const Player& p) { return p.cfd == msg.client_fd; });
                         
-                        if (it != players.end()) {
+                        if (it != worker->players.end()) {
                             it->next_move = msg.move_data; // Ustawiamy pole next_move gracza
                             std::cout << "Gracz " << it->player_id << " ustawil ruch na: " << it->next_move << std::endl;
                         }
@@ -213,16 +202,14 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
             start_time = std::chrono::steady_clock::now();
             
             // Wykonujemy ruchy wszystkich graczy
-            for (auto& player : players) {
+            for (auto& player : worker->players) {
                 if (player.is_alive) { // Wykonuj ruch tylko dla żyjących graczy
-                    player_move(player);
+                    player_move(player, worker);
                 }
             }
             
-
-
             // Przekształcamy macierz do ładnej postaci
-            std::string matrix = matrix_to_string(matrix_grid);
+            std::string matrix = matrix_to_string(worker->matrix_grid);
             
             // Wysyłamy rozmiar macierzy, a potem samą macierz przez pipe
             size_t matrix_size = matrix.size();
@@ -244,9 +231,7 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
             }
             
             std::cout << "Wyslano macierz " << GAME_GRID_SIZE << "x" << GAME_GRID_SIZE 
-                    << " (" << matrix_size << " bajtow), liczba graczy: " << players.size() << std::endl;
-            
-
+                    << " (" << matrix_size << " bajtow), liczba graczy: " << worker->players.size() << std::endl;
         }
     }
     
@@ -285,10 +270,10 @@ void place_player_in_3x3(std::vector<std::vector<char>>& grid, int center_row,
     grid[center_row][center_col] = '0' + id_gracza;
 }
 
-int matrix_place_player(Player& player) { // Zmieniona sygnatura
-    int n = GAME_GRID_SIZE; // Używamy stałej globalnej
-    int m = GAME_GRID_SIZE; // Używamy stałej globalnej
-    if (matrix_grid.empty() || n < 3 || m < 3) {
+int matrix_place_player(Player& player, std::shared_ptr<WorkerThread> worker) {
+    int n = GAME_GRID_SIZE;
+    int m = GAME_GRID_SIZE;
+    if (worker->matrix_grid.empty() || n < 3 || m < 3) {
         return -1;
     }
     
@@ -300,9 +285,9 @@ int matrix_place_player(Player& player) { // Zmieniona sygnatura
     int random_row = dis_row(gen);
     int random_col = dis_col(gen);
     
-    if (is_3x3_free(matrix_grid, random_row, random_col)) {
-        place_player_in_3x3(matrix_grid, random_row, random_col, player.color, player.player_id);
-        player.row_position = random_row; // Aktualizujemy pozycję bezpośrednio w obiekcie Player
+    if (is_3x3_free(worker->matrix_grid, random_row, random_col)) {
+        place_player_in_3x3(worker->matrix_grid, random_row, random_col, player.color, player.player_id);
+        player.row_position = random_row;
         player.col_position = random_col;
         
         return 1;
@@ -310,9 +295,9 @@ int matrix_place_player(Player& player) { // Zmieniona sygnatura
     
     for (int i = 1; i < n - 1; ++i) {
         for (int j = 1; j < m - 1; ++j) {
-            if (is_3x3_free(matrix_grid, i, j)) {
-                place_player_in_3x3(matrix_grid, i, j, player.color, player.player_id);
-                player.row_position = i; // Aktualizujemy pozycję bezpośrednio w obiekcie Player
+            if (is_3x3_free(worker->matrix_grid, i, j)) {
+                place_player_in_3x3(worker->matrix_grid, i, j, player.color, player.player_id);
+                player.row_position = i;
                 player.col_position = j;
                 
                 return 1;
@@ -324,7 +309,7 @@ int matrix_place_player(Player& player) { // Zmieniona sygnatura
 }
 
 /*Funkcja edytuje macierz tak aby gracz sie na niej poruszyl*/
-void player_move(Player& player) {
+void player_move(Player& player, std::shared_ptr<WorkerThread> worker) {
 
     // ustalamy w ktora strone dany gracz bedzie sie poruszal
     char small_color = small_colors[player.player_id - 1];
@@ -363,7 +348,7 @@ void player_move(Player& player) {
     }
     
     // Resetujemy next_move po przetworzeniu
-    player.next_move = '\0'; // Zmieniono na '\0' dla poprawnego resetu
+    player.next_move = '\0';
 
     // Obliczamy potencjalną następną pozycję
     int next_row = player.row_position;
@@ -383,10 +368,7 @@ void player_move(Player& player) {
         return;
     }
 
-    
-    // small_color jest już zadeklarowane na początku funkcji
-    // char small_color = small_colors[player.player_id - 1]; 
-    char target_cell = matrix_grid[next_row][next_col];
+    char target_cell = worker->matrix_grid[next_row][next_col];
 
     if ((player.coloring && target_cell == small_colors[player.player_id - 1]) || 
         (target_cell != '0' && target_cell != player.color && target_cell != small_colors[player.player_id - 1])) {
@@ -402,24 +384,22 @@ void player_move(Player& player) {
         // TODO: Tutaj zaimplementuj logikę wypełniania obszaru
         player.coloring = false;
         // Po wypełnieniu, obecna pozycja staje się kolorem gracza
-        matrix_grid[player.row_position][player.col_position] = player.color;
+        worker->matrix_grid[player.row_position][player.col_position] = player.color;
     } 
     else if (target_cell == player.color) // jesli gracz poprostu chodzi po swoim terytorium to nic sie nie zmienia
     {
-        //matrix_grid[next_row][next_col] = player.color;
-        matrix_grid[player.row_position][player.col_position] = player.color;
+        worker->matrix_grid[player.row_position][player.col_position] = player.color;
     }
         
     else {
         // Jeśli nie koloruje, lub nie zamyka pętli
         if (player.coloring) {
-
-            matrix_grid[player.row_position][player.col_position] = small_color;
+            worker->matrix_grid[player.row_position][player.col_position] = small_color;
         } else {
             // Rozpocznij kolorowanie, obecna pozycja staje się kolorem gracza
             player.coloring = true;
-            player.matrix_before_coloring = matrix_grid; // Zapisz stan przed rozpoczęciem kolorowania
-            matrix_grid[player.row_position][player.col_position] = player.color;
+            player.matrix_before_coloring = worker->matrix_grid; // Zapisz stan przed rozpoczęciem kolorowania
+            worker->matrix_grid[player.row_position][player.col_position] = player.color;
         }
     }
 
@@ -428,5 +408,5 @@ void player_move(Player& player) {
     player.col_position = next_col;
 
     // Umieszczamy gracza na nowej pozycji
-    matrix_grid[player.row_position][player.col_position] = player.player_id + '0';
+    worker->matrix_grid[player.row_position][player.col_position] = player.player_id + '0';
 }
