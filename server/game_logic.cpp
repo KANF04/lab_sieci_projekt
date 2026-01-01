@@ -163,6 +163,12 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                                 std::cout << "Nie udalo sie umiescic gracza na planszy!" << std::endl;
                                 release_player_color(new_player, worker);
                             }
+                            if (write(worker->game_pipe_fd[1], &new_player.player_id, sizeof(new_player.player_id)) == -1) {
+                                if (errno != EPIPE) {
+                                    perror("Blad wysylania rozmiaru macierzy przez game_pipe");
+                                }
+                                break;
+                            }
                         } else {
                             std::cout << "Brak wolnych kolorow dla gracza!" << std::endl;
                         }
@@ -201,8 +207,17 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                         }
                         break;
                     }
-
-                    
+                    case MessageType::RESPWAN_PLAYER: {
+                        std::cout << "Game Logic: Otrzymano respawn gracza (fd=" << msg.client_fd << ")" << std::endl;
+                        
+                        // Znajdź gracza po deskryptorze pliku (fd)
+                        auto it = std::find_if(worker->players.begin(), worker->players.end(),
+                                             [msg](const Player& p) { return p.cfd == msg.client_fd; });
+                        if (it != worker->players.end() && it->is_alive == false){
+                            
+                            it->waiting_for_respawn = true;
+                        }
+                    }
                     default:
                         break;
                 }
@@ -214,17 +229,24 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time-start_time).count();
         if (ms >= GAME_REFRESH_INTERVAL){
             if (DEBUGGING)      std::cout<<"Czas interwalu: "<<ms<<std::endl;
-            
             // zerujemy zegar
             start_time = std::chrono::steady_clock::now();
-            
             // Wykonujemy ruchy wszystkich graczy
             for (auto& player : worker->players) {
                 if (player.is_alive) { // Wykonuj ruch tylko dla żyjących graczy
-                    player_move(player, worker);
+                    player_move(player, worker);    
+                }
+                else if (player.waiting_for_respawn){
+                    int result = matrix_place_player(player, worker);
+                    if (result == 1) {
+                        player.waiting_for_respawn = false;
+                        player.is_alive = true;
+                        std::cout << "Gracz " << player.player_id 
+                                  << " (kolor: " << player.color 
+                                  << ") zostal wskrzeszony!" << std::endl;
+                    }
                 }
             }
-            
             // Przekształcamy macierz do ładnej postaci
             std::string matrix = matrix_to_string(worker->matrix_grid);
             

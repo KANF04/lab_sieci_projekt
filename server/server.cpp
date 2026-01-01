@@ -424,9 +424,12 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                                 if (DEBUGGING){
                                 std::cout << "Wyslano komunikat PLAYER_MOVE do game_logic (fd=" << fd << ", move=" << received_char << ")" << std::endl;
                                 }
-                            } else {
-                                // nie potrzebujemy juz tego ale zostawiam do debuggowania
-                               // std::cout << "Odebrano nieznany znak od klienta " << fd << ": " << received_char << std::endl;
+                            } else if (received_char == 'r'){
+                                GameMessage msg;
+                                msg.type = MessageType::RESPWAN_PLAYER;
+                                msg.client_fd = fd;
+                                write(worker->control_pipe_fd[1], &msg, sizeof(msg));
+
                             }
                         }
                     }

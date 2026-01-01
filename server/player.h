@@ -13,6 +13,8 @@ struct Player {
     char next_move;
     bool is_alive;
     char direction;
+
+    bool waiting_for_respawn;
     
     Player();
 };

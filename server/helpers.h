@@ -21,7 +21,8 @@ enum class MessageType : char {
     NEW_PLAYER = 'N',
     REMOVE_PLAYER = 'R',
     MATRIX_UPDATE = 'M',
-    PLAYER_MOVE = 'P'
+    PLAYER_MOVE = 'P',
+    RESPWAN_PLAYER = 'S'
 };
 
 // Struktura komunikatu
