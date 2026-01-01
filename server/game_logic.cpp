@@ -562,12 +562,24 @@ void fill_closed_area(int player_id, std::shared_ptr<WorkerThread> worker) {
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < m; ++j) {
             if ((i == 0 || i == n-1 || j == 0 || j == m-1) && 
-                worker->matrix_grid[i][j] != color) {
+                worker->matrix_grid[i][j] != color && worker->matrix_grid[i][j] != player_id + '0') {
                 q.push({i, j});
                 outside[i][j] = true;
             }
         }
     }
+    // wyswietlmy na termianlu ladnie macierz
+    if (DEBUGGING) {
+        std::cout << "Macierz outside:" << std::endl;
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < m; ++j) {
+                std::cout << (outside[i][j] ? "1 " : "0 ");
+            }
+            std::cout << std::endl;
+        }
+    }
+
+
     
    
     int dx[] = {-1, 1, 0, 0};
@@ -583,10 +595,19 @@ void fill_closed_area(int player_id, std::shared_ptr<WorkerThread> worker) {
             int ny = y + dy[dir];
             
             if (nx >= 0 && nx < n && ny >= 0 && ny < m && 
-                !outside[nx][ny] && worker->matrix_grid[nx][ny] != color) {
+                !outside[nx][ny] && worker->matrix_grid[nx][ny] != color && worker->matrix_grid[nx][ny] != player_id + '0') {
                 outside[nx][ny] = true;
                 q.push({nx, ny});
             }
+        }
+    }
+    if (DEBUGGING) {
+        std::cout << "Macierz outside:" << std::endl;
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < m; ++j) {
+                std::cout << (outside[i][j] ? "1 " : "0 ");
+            }
+            std::cout << std::endl;
         }
     }
     

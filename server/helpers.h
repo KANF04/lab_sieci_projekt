@@ -13,7 +13,7 @@ const int GAME_GRID_SIZE = 20;
 const int MAX_CLIENTS_PER_THREAD = 4;
 const int MAX_EVENTS = 10;
 const int BUFFER_SIZE = 1024;
-const int GAME_REFRESH_INTERVAL = 2000;
+const int GAME_REFRESH_INTERVAL = 500;
 const bool DEBUGGING = true;
 
 // Typy komunikatów między serwerem a game_logic
