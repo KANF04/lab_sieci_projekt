@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1359</width>
-    <height>729</height>
+    <width>1613</width>
+    <height>921</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,8 +17,8 @@
    <widget class="QPushButton" name="quitButton">
     <property name="geometry">
      <rect>
-      <x>1400</x>
-      <y>100</y>
+      <x>1090</x>
+      <y>80</y>
       <width>96</width>
       <height>27</height>
      </rect>
@@ -27,13 +27,29 @@
      <string>Quit</string>
     </property>
    </widget>
+   <widget class="QLabel" name="playerColorLabel">
+    <property name="geometry">
+     <rect>
+      <x>1060</x>
+      <y>140</y>
+      <width>211</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="layoutDirection">
+     <enum>Qt::LayoutDirection::LeftToRight</enum>
+    </property>
+    <property name="text">
+     <string>Twój kolor: czerwony</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1359</width>
+     <width>1613</width>
      <height>24</height>
     </rect>
    </property>

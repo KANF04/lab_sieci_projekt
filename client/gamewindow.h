@@ -25,6 +25,7 @@ public:
     ~GameWindow();
 
     void setMatrix(const vector<vector<string>>& newMatrix);
+    void setColor(QString& color);
 
 private:
     Ui::GameWindow *ui;

@@ -14,11 +14,14 @@ using namespace std;
 /*----------------------------------------------------LOGIC FUNCTIONS----------------------------------------------------*/
 
 vector<vector<string>> mkMatrix(const vector<char> &matrixBuffer, ssize_t n) {
-    string text(matrixBuffer.data(), n);
 
     vector<vector<string>> matrix;
 
     string line;
+
+
+    string text(matrixBuffer.data(), n);
+
     stringstream all(text);
 
     while (getline(all, line)) {
@@ -86,13 +89,30 @@ void printRecvMsg(int fd, GameWindow *window) {
     static vector<char> matrixBuffer(4096);
 
     ssize_t n = read(fd, matrixBuffer.data(), matrixBuffer.size());
+
     if (n <= 0)
         return;
 
     write(1, matrixBuffer.data(), n); // prints whole matrix in terminal
+    QString color;
+
+    if (matrixBuffer[1] == '\n') {
+        switch (matrixBuffer[0]) {
+            case '1': color = "czerwony"; break;
+            case '2': color = "niebieski"; break;
+            case '3': color = "zielony"; break;
+            default:  color = "żółty"; break;
+        }
+
+        matrixBuffer.erase(matrixBuffer.begin(), matrixBuffer.begin() + 2);
+
+        n= n-2;
+
+        window->setColor(color);
+    }
+
 
     vector<vector<string>> matrix = mkMatrix(matrixBuffer, n); // makes matrix from recieved data
-
     window->setMatrix(matrix);
-    cout << "matrix[0][0] = " << matrix[0][0] << "costam" <<endl;
+
 }

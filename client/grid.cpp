@@ -7,8 +7,8 @@
 
 using namespace std;
 
-QColor lightRed("#872b40"); // currently colored cubes
-QColor darkRed("#5c202e"); // head of the read player
+QColor lightRed("#b3463e"); // currently colored cubes
+QColor darkRed("#94190f"); // head of the read player
 
 QColor lightGreen("#72ab6a"); // currently colored cubes
 QColor darkGreen("#24611b"); // head of the green player
