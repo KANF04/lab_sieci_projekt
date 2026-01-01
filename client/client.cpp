@@ -11,7 +11,7 @@
 
 using namespace std;
 
-/*----------------------------------------------------LOGIC FUNCTIONS----------------------------------------------------*/
+/*----------------------------------------------------FUNKCJE Logiczne----------------------------------------------------*/
 
 vector<vector<string>> mkMatrix(const vector<char> &matrixBuffer, ssize_t n) {
 
@@ -42,7 +42,7 @@ vector<vector<string>> mkMatrix(const vector<char> &matrixBuffer, ssize_t n) {
     return matrix;
 }
 
-/*----------------------------------------------------NETWORK FUNCTIONS----------------------------------------------------*/
+/*----------------------------------------------------FUNKCJE SIECIOWE----------------------------------------------------*/
 
 int connectToServer(const char* ip, int port) {
 
@@ -95,13 +95,16 @@ void printRecvMsg(int fd, GameWindow *window) {
 
     write(1, matrixBuffer.data(), n); // prints whole matrix in terminal
     QString color;
+    bool isDead = false;
 
     if (matrixBuffer[1] == '\n') {
         switch (matrixBuffer[0]) {
             case '1': color = "czerwony"; break;
             case '2': color = "niebieski"; break;
             case '3': color = "zielony"; break;
-            default:  color = "żółty"; break;
+            case '4': color = "żółty"; break;
+            case 'D':  isDead = true; break;
+            default: break;
         }
 
         matrixBuffer.erase(matrixBuffer.begin(), matrixBuffer.begin() + 2);
@@ -109,8 +112,10 @@ void printRecvMsg(int fd, GameWindow *window) {
         n= n-2;
 
         window->setColor(color);
+        if (isDead) {
+            window->loseMessage();
+        }
     }
-
 
     vector<vector<string>> matrix = mkMatrix(matrixBuffer, n); // makes matrix from recieved data
     window->setMatrix(matrix);

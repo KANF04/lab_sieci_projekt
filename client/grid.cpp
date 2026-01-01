@@ -7,22 +7,25 @@
 
 using namespace std;
 
-QColor lightRed("#b3463e"); // currently colored cubes
-QColor darkRed("#94190f"); // head of the read player
+/*----------------------------------------------------KOLORY GRACZÓW----------------------------------------------------*/
 
-QColor lightGreen("#72ab6a"); // currently colored cubes
-QColor darkGreen("#24611b"); // head of the green player
+QColor lightRed("#b3463e"); // aktualnie kolorowane pola
+QColor darkRed("#94190f"); // "głowa" czerwonego gracza
 
-QColor lightYellow("#9a9c49"); // currently colored cubes
-QColor darkYellow("#24611b");  // head of the green player
+QColor lightGreen("#72ab6a"); // aktualnie kolorowane pola
+QColor darkGreen("#24611b"); // "głowa" zielonego gracza
 
-QColor lightBlue("#517494"); // currently colored cubes
-QColor darkBlue("#224f78");  // head of the blue player
+QColor lightYellow("#9a9c49"); // aktualnie kolorowane pola
+QColor darkYellow("#24611b");  // "głowa" żółtego gracza
+
+QColor lightBlue("#517494"); // aktualnie kolorowane pola
+QColor darkBlue("#224f78");  // "głowa" niebieskiego gracza
 
 Grid::Grid(QWidget *parent)
     : QWidget{parent}
 {}
 
+/*----------------------------------------------------POZOSTAŁE METODY----------------------------------------------------*/
 
 void Grid::setMatrix(const vector<vector<string>>& newMatrix)
 {
