@@ -49,6 +49,22 @@ void GameWindow::setMatrix(const vector<vector<string>>& newMatrix)
     grid->setMatrix(newMatrix);
 }
 
+void GameWindow::setColor(QString& color) {
+    ui->playerColorLabel->setText("Twój kolor: " + color);
+    if (color == "czerwony") {
+        ui->playerColorLabel->setStyleSheet("color: red;");
+    }
+    else if (color == "niebieski") {
+        ui->playerColorLabel->setStyleSheet("color: blue;");
+    }
+    else if (color == "zielony") {
+        ui->playerColorLabel->setStyleSheet("color: green;");
+    }
+    else {
+        ui->playerColorLabel->setStyleSheet("color: yellow;");
+    }
+}
+
 GameWindow::~GameWindow()
 {
     delete ui;
