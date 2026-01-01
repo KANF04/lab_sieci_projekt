@@ -32,7 +32,7 @@ jobs:
       run: cmake --build build --config Release
 
     - name: Build server
-      run: g++ -std=c++17 server.cpp helpers.cpp game_logic.cpp player.cpp -o server_app -pthread
+      run: g++ -std=c++17 server/server.cpp server/helpers.cpp server/game_logic.cpp server/player.cpp -o server_app -pthread
 
     - name: Upload client artifact
       uses: actions/upload-artifact@v4
