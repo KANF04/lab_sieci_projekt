@@ -611,7 +611,7 @@ void fill_closed_area(int player_id, std::shared_ptr<WorkerThread> worker) {
         }
     }
     
-    // Wszystkie pola '0' które NIE są oznaczone jako outside są wewnątrz figury
+    // Wszystkie pola które NIE są oznaczone jako outside są wewnątrz figury
     // Wiec je kolorujemy
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < m; ++j) {

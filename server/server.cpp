@@ -406,8 +406,10 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                                 }
                             } else { // PLAYER_DIED or PLAYER_WAITING_RESPAWN
                                 char client_msg_type = static_cast<char>(gl_msg.type);
-                                if (write(gl_msg.client_fd, &client_msg_type, sizeof(client_msg_type)) == -1) {
-                                    std::cout << "Blad wysylania komunikatu '" << client_msg_type
+                                char client_msg[3] = {client_msg_type, '\n'};
+                                
+                                if (write(gl_msg.client_fd, &client_msg, sizeof(client_msg)) == -1) {
+                                    std::cout << "Blad wysylania komunikatu '" << client_msg
                                               << "' do klienta " << gl_msg.client_fd << ": " << strerror(errno) << std::endl;
                                 }
                             }
