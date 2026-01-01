@@ -25,6 +25,22 @@ enum class MessageType : char {
     RESPWAN_PLAYER = 'S'
 };
 
+// Typy komunikatów od game_logic do worker_thread
+enum class GameLogicMessageType : char {
+    PLAYER_ID_ASSIGNED = 'I',     // ID gracza przypisane po pomyślnym umieszczeniu
+    PLAYER_DIED = 'D',            // Gracz umarł
+    PLAYER_WAITING_RESPAWN = 'R', // Gracz czeka na respawn
+    MATRIX_UPDATE = 'M'           // Aktualizacja macierzy
+};
+
+// Struktura komunikatu od game_logic do worker_thread
+struct GameLogicToWorkerMsg {
+    GameLogicMessageType type;
+    int player_id;      // ID gracza, jeśli dotyczy ('I', 'D', 'R')
+    int client_fd;      // Deskryptor klienta, jeśli dotyczy ('I', 'D', 'R')
+    size_t data_length; // Długość dodatkowych danych (np. rozmiar macierzy dla 'M')
+};
+
 // Struktura komunikatu
 struct GameMessage {
     MessageType type;

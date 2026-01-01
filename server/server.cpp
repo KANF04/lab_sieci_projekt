@@ -312,7 +312,7 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                         std::lock_guard<std::mutex> lock(worker->mtx);
                         worker->client_count--;
                     } else {
-                        // DODAJ TO: Wysyłamy komunikat do game_logic o nowym graczu
+                        // Wysyłamy komunikat do game_logic o nowym graczu
                         GameMessage msg;
                         msg.type = MessageType::NEW_PLAYER;
                         msg.client_fd = client_fd;
@@ -323,67 +323,107 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
             }
             // Obsluga danych z game_logic - odbiór macierzy
             else if (events[i].data.fd == worker->game_pipe_fd[0]) {
-                size_t matrix_size;
-                ssize_t n = read(worker->game_pipe_fd[0], &matrix_size, sizeof(matrix_size));
-                
-                if (n == sizeof(matrix_size)) {
-                    // Buforek na macierz
-                    std::vector<char> matrix_buffer(matrix_size);
-                    
-                    // Czytanie macierzy
-                    size_t total_read = 0;
-                    while (total_read < matrix_size) {
-                        ssize_t bytes_read = read(worker->game_pipe_fd[0], 
-                                                matrix_buffer.data() + total_read, 
-                                                matrix_size - total_read);
-                        if (bytes_read <= 0) break;
-                        total_read += bytes_read;
-                    }
-                    
-                    if (total_read == matrix_size) {
-                        std::string matrix(matrix_buffer.begin(), matrix_buffer.end());
-                        std::cout << "Odebrano macierz z game_logic (" << matrix_size 
-                                << " bajtow), rozsylam do " << worker->clients.size() 
-                                << " klientow" << std::endl;
+                GameLogicToWorkerMsg gl_msg;
+                ssize_t n_msg = read(worker->game_pipe_fd[0], &gl_msg, sizeof(gl_msg));
+                if (n_msg == sizeof(gl_msg)) {
+                    if (gl_msg.type == GameLogicMessageType::MATRIX_UPDATE) {
+                        size_t matrix_size = gl_msg.data_length;
+                        // Buforek na macierz
+                        std::vector<char> matrix_buffer(matrix_size);
                         
-                        // Wysylamy macierz do wszystkich klientow z poprawną obsługą błędów
-                        for (auto& [fd, client] : worker->clients) {
-                            size_t total_sent = 0;
-                            const char* data = matrix.c_str();
+                        // Czytanie macierzy
+                        size_t total_read = 0;
+                        while (total_read < matrix_size) {
+                            ssize_t bytes_read = read(worker->game_pipe_fd[0], 
+                                                    matrix_buffer.data() + total_read, 
+                                                    matrix_size - total_read);
+                            if (bytes_read <= 0) {
+                                perror("Blad czytania macierzy z game_pipe");
+                                break;
+                            }
+                            total_read += bytes_read;
+                        }
+                        
+                        if (total_read == matrix_size) {
+                            std::string matrix(matrix_buffer.begin(), matrix_buffer.end());
+                            std::cout << "Odebrano macierz z game_logic (" << matrix_size 
+                                    << " bajtow), rozsylam do " << worker->clients.size() 
+                                    << " klientow" << std::endl;
                             
-                            // Wysyłamy w pętli, obsługując częściowe wysyłki
-                            while (total_sent < matrix_size) {
-                                ssize_t sent = send(fd, data + total_sent, 
-                                                matrix_size - total_sent, 
-                                                MSG_NOSIGNAL);
+                            // Wysylamy macierz do wszystkich klientow z poprawną obsługą błędów
+                            for (auto& [fd, client] : worker->clients) {
+                                size_t total_sent = 0;
+                                const char* data = matrix.c_str();
                                 
-                                if (sent == -1) {
-                                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                                        // Bufor pełny, czekamy chwilę
-                                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                                        continue;
-                                    } else {
-                                        // Prawdziwy błąd
-                                        std::cout << "Blad wysylania do klienta " << fd 
-                                                << ": " << strerror(errno) << std::endl;
+                                // Wysyłamy w pętli, obsługując częściowe wysyłki
+                                while (total_sent < matrix_size) {
+                                    ssize_t sent = write(fd, data + total_sent, 
+                                                    matrix_size - total_sent);
+                                    
+                                    if (sent == -1) {
+                                        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                                            continue;
+                                        } else {
+                                            // błąd
+                                            std::cout << "Blad wysylania do klienta " << fd 
+                                                    << ": " << strerror(errno) << std::endl;
+                                            break;
+                                        }
+                                    } else if (sent == 0) {
+                                        std::cout << "Polaczenie zamkniete dla klienta " << fd << std::endl;
                                         break;
+                                    } else {
+                                        total_sent += sent;
                                     }
-                                } else if (sent == 0) {
-                                    std::cout << "Polaczenie zamkniete dla klienta " << fd << std::endl;
-                                    break;
+                                }
+                                
+                                if (total_sent == matrix_size) {
+                                    std::cout << "Wyslano macierz do klienta " << fd 
+                                            << " (" << total_sent << " bajtow)" << std::endl;
                                 } else {
-                                    total_sent += sent;
+                                    std::cout << "Wyslano tylko " << total_sent << "/" 
+                                            << matrix_size << " bajtow do klienta " << fd << std::endl;
                                 }
                             }
-                            
-                            if (total_sent == matrix_size) {
-                                std::cout << "Wyslano macierz do klienta " << fd 
-                                        << " (" << total_sent << " bajtow)" << std::endl;
-                            } else {
-                                std::cout << "Wyslano tylko " << total_sent << "/" 
-                                        << matrix_size << " bajtow do klienta " << fd << std::endl;
-                            }
                         }
+                    } else if (gl_msg.type == GameLogicMessageType::PLAYER_ID_ASSIGNED ||
+                               gl_msg.type == GameLogicMessageType::PLAYER_DIED ||
+                               gl_msg.type == GameLogicMessageType::PLAYER_WAITING_RESPAWN) {
+                        
+                        std::cout << "Odebrano komunikat typu '" << static_cast<char>(gl_msg.type)
+                                  << "' dla gracza " << gl_msg.player_id
+                                  << " (client_fd=" << gl_msg.client_fd << ")" << std::endl;
+                        
+                        // Sprawdzamy, czy klient nadal istnieje
+                        if (worker->clients.count(gl_msg.client_fd)) {
+                            // Wysyłamy odpowiedni komunikat do klienta
+                            if (gl_msg.type == GameLogicMessageType::PLAYER_ID_ASSIGNED) {
+                                char temp_id = gl_msg.player_id + '0';
+                                char player_id_char[3] = {temp_id, '\n'}; // Konwertujemy int na char (
+                                
+                                if (write(gl_msg.client_fd, &player_id_char, sizeof(player_id_char)) == -1) {
+                                    std::cout << "Blad wysylania ID gracza do klienta " << gl_msg.client_fd << ": " << strerror(errno) << std::endl;
+                                }
+                            } else { // PLAYER_DIED or PLAYER_WAITING_RESPAWN
+                                char client_msg_type = static_cast<char>(gl_msg.type);
+                                if (write(gl_msg.client_fd, &client_msg_type, sizeof(client_msg_type)) == -1) {
+                                    std::cout << "Blad wysylania komunikatu '" << client_msg_type
+                                              << "' do klienta " << gl_msg.client_fd << ": " << strerror(errno) << std::endl;
+                                }
+                            }
+                        } else {
+                            std::cout << "Klient " << gl_msg.client_fd << " nie istnieje w mapie klientow, pomijam wysylanie komunikatu." << std::endl;
+                        }
+                    }
+                } else if (n_msg > 0 && n_msg < sizeof(gl_msg)) {
+                    std::cerr << "Blad: Otrzymano czesciowy naglowek wiadomosci z game_pipe_fd." << std::endl;
+                } else if (n_msg == 0) {
+                    std::cout << "game_pipe_fd zamkniety." << std::endl;
+                    worker->is_running = false;
+                } else { // n_msg == -1
+                    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                        perror("Blad czytania z game_pipe_fd");
+                        worker->is_running = false;
                     }
                 }
             }

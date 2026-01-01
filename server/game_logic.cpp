@@ -110,6 +110,16 @@ bool remove_player_from_grid(int player_id, std::shared_ptr<WorkerThread> worker
     if (DEBUGGING) std::cout << "Gracz " << player_id << " zostal zabity" << std::endl;
 
     it->is_alive = false; 
+    
+    // Wysyłamy informację o śmierci gracza do wątku roboczego
+    GameLogicToWorkerMsg gl_msg_death;
+    gl_msg_death.type = GameLogicMessageType::PLAYER_DIED;
+    gl_msg_death.player_id = player_id;
+    gl_msg_death.client_fd = it->cfd; // Pobieramy cfd z iteratora
+    gl_msg_death.data_length = 0; // Brak dodatkowych danych
+    if (write(worker->game_pipe_fd[1], &gl_msg_death, sizeof(gl_msg_death)) == -1) {
+        if (errno != EPIPE) { perror("Blad wysylania PLAYER_DIED przez game_pipe"); }
+    }
 
     
     
@@ -163,7 +173,16 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                                 std::cout << "Nie udalo sie umiescic gracza na planszy!" << std::endl;
                                 release_player_color(new_player, worker);
                             }
-                            if (write(worker->game_pipe_fd[1], &new_player.player_id, sizeof(new_player.player_id)) == -1) {
+                            // Wysyłamy informację o przypisanym ID gracza do wątku roboczego
+                            GameLogicToWorkerMsg gl_msg_id;
+                            gl_msg_id.type = GameLogicMessageType::PLAYER_ID_ASSIGNED;
+                            gl_msg_id.player_id = new_player.player_id;
+                            gl_msg_id.client_fd = new_player.cfd;
+                            gl_msg_id.data_length = 0; // Brak dodatkowych danych
+
+                            if (write(worker->game_pipe_fd[1], &gl_msg_id, sizeof(gl_msg_id)) == -1) {
+                                // if (write(worker->game_pipe_fd[1], &new_player.player_id, sizeof(new_player.player_id)) == -1) { // Usunięto starą linię
+
                                 if (errno != EPIPE) {
                                     perror("Blad wysylania rozmiaru macierzy przez game_pipe");
                                 }
@@ -238,6 +257,7 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                 }
                 else if (player.waiting_for_respawn){
                     int result = matrix_place_player(player, worker);
+                    // Jeśli gracz został wskrzeszony
                     if (result == 1) {
                         player.waiting_for_respawn = false;
                         player.is_alive = true;
@@ -245,20 +265,35 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                                   << " (kolor: " << player.color 
                                   << ") zostal wskrzeszony!" << std::endl;
                     }
+                    // Jeśli gracz nadal czeka na respawn (nie udało się go umieścić)
+                    else {
+                        GameLogicToWorkerMsg gl_msg_respawn;
+                        gl_msg_respawn.type = GameLogicMessageType::PLAYER_WAITING_RESPAWN;
+                        gl_msg_respawn.player_id = player.player_id;
+                        gl_msg_respawn.client_fd = player.cfd;
+                        gl_msg_respawn.data_length = 0;
+                        if (write(worker->game_pipe_fd[1], &gl_msg_respawn, sizeof(gl_msg_respawn)) == -1) {
+                            if (errno != EPIPE) {
+                                perror("Blad wysylania PLAYER_WAITING_RESPAWN przez game_pipe");
+                            }
+                        }
+                    }
                 }
             }
             // Przekształcamy macierz do ładnej postaci
             std::string matrix = matrix_to_string(worker->matrix_grid);
             
-            // Wysyłamy rozmiar macierzy, a potem samą macierz przez pipe
+            // Wysyłamy nagłówek wiadomości o aktualizacji macierzy
             size_t matrix_size = matrix.size();
-            
-            // Najpierw wysyłamy rozmiar
-            if (write(worker->game_pipe_fd[1], &matrix_size, sizeof(matrix_size)) == -1) {
-                if (errno != EPIPE) {
-                    perror("Blad wysylania rozmiaru macierzy przez game_pipe");
-                }
-                break;
+            GameLogicToWorkerMsg gl_msg_matrix_update;
+            gl_msg_matrix_update.type = GameLogicMessageType::MATRIX_UPDATE;
+            gl_msg_matrix_update.player_id = -1; // Nie dotyczy
+            gl_msg_matrix_update.client_fd = -1; // Nie dotyczy
+            gl_msg_matrix_update.data_length = matrix_size;
+
+            if (write(worker->game_pipe_fd[1], &gl_msg_matrix_update, sizeof(gl_msg_matrix_update)) == -1) {
+                if (errno != EPIPE) { perror("Blad wysylania MATRIX_UPDATE header przez game_pipe"); }
+                continue; // Pomiń wysyłanie macierzy, jeśli nagłówek się nie powiódł
             }
             
             // Potem wysyłamy samą macierz
