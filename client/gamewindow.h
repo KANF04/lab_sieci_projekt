@@ -26,6 +26,7 @@ public:
 
     void setMatrix(const vector<vector<string>>& newMatrix);
     void setColor(QString& color);
+    void loseMessage();
 
 private:
     Ui::GameWindow *ui;
@@ -33,6 +34,7 @@ private:
     void onQuitButtonClicked();
     QSocketNotifier* notifier;
     Grid *grid;
+    void onRestartButtonClicked();
 
 protected:
     void keyPressEvent(QKeyEvent *event) override {

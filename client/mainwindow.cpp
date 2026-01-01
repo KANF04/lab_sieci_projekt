@@ -18,6 +18,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->joinButton, &QPushButton::clicked, this, &MainWindow::onJoinButtonClicked);
 }
 
+/*----------------------------------------------------METODY PRZYCISKÓW----------------------------------------------------*/
+
 void MainWindow::onJoinButtonClicked() {
 
     string ipStr = ui->ipLineEdit->text().toStdString();
@@ -25,6 +27,7 @@ void MainWindow::onJoinButtonClicked() {
 
     int port = ui->portLineEdit->text().toInt();
 
+    // Komunikat błedu przy wpisaniu nierealnego portu
     if (port <= 0 || port >= 62535) {
         ui->serverMsgLabel->setText("Connection error: Wrong port");
         ui->serverMsgLabel->show();
@@ -39,6 +42,8 @@ void MainWindow::onJoinButtonClicked() {
             win->show();
         }
         else {
+
+            // Komunikat błędu przy niepoprawnym deskryptorze
             ui->serverMsgLabel->setText("Connection error: Wrong IP or port");
             ui->serverMsgLabel->show();
         }

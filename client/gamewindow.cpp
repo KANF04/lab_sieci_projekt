@@ -7,6 +7,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <QMessageBox>
 
 using namespace std;
 
@@ -17,23 +18,34 @@ GameWindow::GameWindow(int fd, QWidget *parent)
 {
     ui->setupUi(this);
 
-    this->setFocusPolicy(Qt::StrongFocus); // focus on window
+    // ciągły focus na oknie
+    this->setFocusPolicy(Qt::StrongFocus);
     this->setFocus();
 
+    // połączenie przycisku do wyjścia z gry
     connect(ui->quitButton, &QPushButton::clicked, this, &GameWindow::onQuitButtonClicked);
     extern void printRecvMsg(int fd);
 
     notifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
+
     connect(notifier, &QSocketNotifier::activated, this, [this]() {
         extern void printRecvMsg(int fd, GameWindow *window);
         printRecvMsg(this->fd, this);
     });
 
+    // połączenie przycisku do ponownego dołączania
+    connect(ui->restartButton, &QPushButton::clicked, this, &GameWindow::onRestartButtonClicked);
+
+    extern void printRecvMsg(int fd);
+
+    // ustawienie rozmiaru okna
     this->setFixedSize(1600, 1200);
     grid = new Grid(this);
     grid->setGeometry(100, 100, 800, 800);
     grid->show();
 }
+
+/*----------------------------------------------------METODY PRZYCISKÓW----------------------------------------------------*/
 
 void GameWindow::onQuitButtonClicked() {
     notifier->setEnabled(false);
@@ -43,6 +55,12 @@ void GameWindow::onQuitButtonClicked() {
     MainWindow *win = new MainWindow();
     win->show();
 }
+
+void GameWindow::onRestartButtonClicked() {
+    sendMove(this->fd, "r");
+}
+
+/*----------------------------------------------------POZOSTAŁE METODY----------------------------------------------------*/
 
 void GameWindow::setMatrix(const vector<vector<string>>& newMatrix)
 {
@@ -63,6 +81,10 @@ void GameWindow::setColor(QString& color) {
     else {
         ui->playerColorLabel->setStyleSheet("color: yellow;");
     }
+}
+
+void GameWindow::loseMessage() {
+    QMessageBox::information(this, "Koniec gry", "Zostałeś pokonany :(");
 }
 
 GameWindow::~GameWindow()
