@@ -17,6 +17,7 @@ WorkerThread::WorkerThread() : client_count(0), is_running(false), epoll_fd(-1),
     
     // Inicjalizuj macierz gry
     matrix_grid.resize(GAME_GRID_SIZE, std::vector<char>(GAME_GRID_SIZE, '0'));
+    matrix_before_coloring = matrix_grid;
 }
 
 // Implementacja destruktora WorkerThread

@@ -53,6 +53,7 @@ struct WorkerThread {
     
     // Stan gry dla tego wątku:
     std::vector<std::vector<char>> matrix_grid;
+    std::vector<std::vector<char>> matrix_before_coloring; // macierz ale bez zadnych trybow kolorowania
     std::vector<Player> players;  // Teraz to zadziała!
     std::vector<bool> color_used;
     

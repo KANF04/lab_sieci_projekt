@@ -13,7 +13,6 @@ struct Player {
     char next_move;
     bool is_alive;
     char direction;
-    std::vector<std::vector<char>> matrix_before_coloring;
     
     Player();
 };
