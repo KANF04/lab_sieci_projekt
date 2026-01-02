@@ -38,7 +38,7 @@ void MainWindow::onJoinButtonClicked() {
 
             close();
 
-            GameWindow *win = new GameWindow(fd);
+            GameWindow *win = new GameWindow(fd, false);
             win->show();
         }
         else {

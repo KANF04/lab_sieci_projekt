@@ -8,6 +8,7 @@
 #include <sstream>
 #include <vector>
 #include "grid.h"
+#include "dialog.h"
 
 using namespace std;
 
@@ -86,6 +87,7 @@ void shut_conn(int fd) {
 }
 
 void printRecvMsg(int fd, GameWindow *window) {
+
     static vector<char> matrixBuffer(4096);
 
     ssize_t n = read(fd, matrixBuffer.data(), matrixBuffer.size());
@@ -96,6 +98,8 @@ void printRecvMsg(int fd, GameWindow *window) {
     write(1, matrixBuffer.data(), n); // prints whole matrix in terminal
     QString color;
     bool isDead = false;
+    bool hasWon = false;
+    bool hasLost = false;
 
     if (matrixBuffer[1] == '\n') {
         switch (matrixBuffer[0]) {
@@ -103,7 +107,9 @@ void printRecvMsg(int fd, GameWindow *window) {
             case '2': color = "niebieski"; break;
             case '3': color = "zielony"; break;
             case '4': color = "żółty"; break;
-            case 'D':  isDead = true; break;
+            case 'D': isDead = true; break;
+            case 'W': hasWon = true; break;
+            case 'L': hasLost = true; break;
             default: break;
         }
 
@@ -113,8 +119,23 @@ void printRecvMsg(int fd, GameWindow *window) {
 
         window->setColor(color);
         if (isDead) {
-            window->loseMessage();
+            window->deadMessage();
+            window->setIsDead(true);
         }
+
+        QString info;
+
+        if (hasWon || hasLost) {
+            if (hasWon) {
+                info = "WYGRAŁES!!!";
+            } else {
+                info = "PRZEGRAŁES :(";
+            }
+
+            Dialog *dialog = new Dialog(fd, info);
+            dialog->show();
+        }
+
     }
 
     vector<vector<string>> matrix = mkMatrix(matrixBuffer, n); // makes matrix from recieved data
