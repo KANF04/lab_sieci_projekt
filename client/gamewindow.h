@@ -21,12 +21,13 @@ class GameWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit GameWindow(int fd, QWidget *parent = nullptr);
+    explicit GameWindow(int fd, bool isDead, QWidget *parent = nullptr);
     ~GameWindow();
 
     void setMatrix(const vector<vector<string>>& newMatrix);
     void setColor(QString& color);
-    void loseMessage();
+    void deadMessage();
+    void setIsDead(bool isDead);
 
 private:
     Ui::GameWindow *ui;
@@ -35,6 +36,7 @@ private:
     QSocketNotifier* notifier;
     Grid *grid;
     void onRestartButtonClicked();
+    bool isD;
 
 protected:
     void keyPressEvent(QKeyEvent *event) override {

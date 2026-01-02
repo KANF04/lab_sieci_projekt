@@ -8,15 +8,19 @@
 #include <iostream>
 #include <vector>
 #include <QMessageBox>
+#include "dialog.h"
 
 using namespace std;
 
-GameWindow::GameWindow(int fd, QWidget *parent)
+GameWindow::GameWindow(int fd, bool isDead, QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::GameWindow)
     , fd(fd)
+    , isD(isDead)
 {
     ui->setupUi(this);
+
+    ui->restartButton->setEnabled(false);
 
     // ciągły focus na oknie
     this->setFocusPolicy(Qt::StrongFocus);
@@ -57,7 +61,10 @@ void GameWindow::onQuitButtonClicked() {
 }
 
 void GameWindow::onRestartButtonClicked() {
-    sendMove(this->fd, "r");
+    if (isD) {
+        sendMove(this->fd, "r");
+        ui->restartButton->setEnabled(false);
+    }
 }
 
 /*----------------------------------------------------POZOSTAŁE METODY----------------------------------------------------*/
@@ -67,8 +74,14 @@ void GameWindow::setMatrix(const vector<vector<string>>& newMatrix)
     grid->setMatrix(newMatrix);
 }
 
+void GameWindow::setIsDead(bool isDead) {
+    isD = isDead;
+    ui->restartButton->setEnabled(isDead);
+}
+
 void GameWindow::setColor(QString& color) {
     ui->playerColorLabel->setText("Twój kolor: " + color);
+
     if (color == "czerwony") {
         ui->playerColorLabel->setStyleSheet("color: red;");
     }
@@ -78,13 +91,16 @@ void GameWindow::setColor(QString& color) {
     else if (color == "zielony") {
         ui->playerColorLabel->setStyleSheet("color: green;");
     }
-    else {
+    else if (color == "żółty") {
         ui->playerColorLabel->setStyleSheet("color: yellow;");
+    }
+    else {
+        ui->playerColorLabel->setStyleSheet("color: black;");
     }
 }
 
-void GameWindow::loseMessage() {
-    QMessageBox::information(this, "Koniec gry", "Zostałeś pokonany :(");
+void GameWindow::deadMessage() {
+    QMessageBox::information(this, "", "Zostałeś pokonany :(");
 }
 
 GameWindow::~GameWindow()
