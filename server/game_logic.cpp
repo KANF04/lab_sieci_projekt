@@ -213,6 +213,7 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                         break;
                         
                     }
+
                     case MessageType::PLAYER_MOVE: {
                         std::cout << "Game Logic: Otrzymano ruch gracza (fd=" << msg.client_fd << ", move=" << msg.move_data << ")" << std::endl;
                         
@@ -226,6 +227,7 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                         }
                         break;
                     }
+
                     case MessageType::RESPWAN_PLAYER: {
                         std::cout << "Game Logic: Otrzymano respawn gracza (fd=" << msg.client_fd << ")" << std::endl;
                         
@@ -237,6 +239,23 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                             it->waiting_for_respawn = true;
                         }
                     }
+                    
+                    case MessageType::NEW_GAME_REQUEST: {
+                        std::cout << "Game Logic: Otrzymano glos za nowa gra (fd=" << msg.client_fd << ")" << std::endl;
+                        
+                        if (worker->game_ended) {
+                            worker->votes_for_new_game++;
+                            std::cout << "Glosow za nowa gra: " << worker->votes_for_new_game 
+                                    << "/" << worker->players.size() << std::endl;
+                            
+                            // Jeśli wszyscy zywi klienci zaglosowali zaczynamy gre
+                            if (worker->votes_for_new_game >= worker->players.size()) {
+                                reset_game(worker);
+                            }
+                        }
+                        break;
+                    }
+                                        
                     default:
                         break;
                 }
@@ -250,6 +269,11 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
             if (DEBUGGING)      std::cout<<"Czas interwalu: "<<ms<<std::endl;
             // zerujemy zegar
             start_time = std::chrono::steady_clock::now();
+
+            if (worker->game_ended) {
+                std::cout << "Gra zakonczona, oczekiwanie na glosy..." << std::endl;
+                continue;  // Pomijamy resztę pętli
+            }
             // Wykonujemy ruchy wszystkich graczy
             for (auto& player : worker->players) {
                 if (player.is_alive) { // Wykonuj ruch tylko dla żyjących graczy
@@ -280,6 +304,10 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                     }
                 }
             }
+
+            if (!worker->game_ended) {
+                check_win_condition(worker);
+            }
             // Przekształcamy macierz do ładnej postaci
             std::string matrix = matrix_to_string(worker->matrix_grid);
             
@@ -293,7 +321,7 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
 
             if (write(worker->game_pipe_fd[1], &gl_msg_matrix_update, sizeof(gl_msg_matrix_update)) == -1) {
                 if (errno != EPIPE) { perror("Blad wysylania MATRIX_UPDATE header przez game_pipe"); }
-                continue; // Pomiń wysyłanie macierzy, jeśli nagłówek się nie powiódł
+                continue; // Pomiń wysyłanie macierzy
             }
             
             // Potem wysyłamy samą macierz
@@ -626,4 +654,104 @@ void fill_closed_area(int player_id, std::shared_ptr<WorkerThread> worker) {
         std::cout << "Wypelniono zamkniety obszar gracza " << player_id 
                   << " kolorem " << color << std::endl;
     }
+}
+
+
+void check_win_condition(std::shared_ptr<WorkerThread> worker) {
+    if (worker->game_ended) return;  
+    
+    int total_cells = GAME_GRID_SIZE * GAME_GRID_SIZE;
+    int win_threshold = total_cells / 2;  // 50% mapy
+    
+    // Zliczamy pola dla każdego gracza
+    std::vector<int> player_cells(5, 0);  // Indeksy 1-4 dla graczy
+    
+    for (int i = 0; i < GAME_GRID_SIZE; ++i) {
+        for (int j = 0; j < GAME_GRID_SIZE; ++j) {
+            char cell = worker->matrix_grid[i][j];
+            
+            // Sprawdzamy czy to kolor gracza (R, B, G, Y)
+            for (size_t p = 0; p < available_colors.size(); ++p) {
+                if (cell == available_colors[p]) {
+                    player_cells[p + 1]++;
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Sprawdzamy czy ktoś osiągnął 50%
+    int winner_id = -1;
+    for (int i = 1; i <= 4; ++i) {
+        if (player_cells[i] >= win_threshold) {
+            winner_id = i;
+            break;
+        }
+    }
+    
+    if (winner_id != -1) {
+        std::cout << "=== KONIEC GRY! ===" << std::endl;
+        std::cout << "Gracz " << winner_id << " wygral z " 
+                  << player_cells[winner_id] << "/" << total_cells 
+                  << " polami (" << (player_cells[winner_id] * 100 / total_cells) << "%)" << std::endl;
+        
+        worker->game_ended = true;
+        worker->votes_for_new_game = 0;
+        
+        // Wysyłamy wiadomości do wszystkich graczy
+        for (auto& player : worker->players) {
+            GameLogicToWorkerMsg msg;
+            msg.player_id = player.player_id;
+            msg.client_fd = player.cfd;
+            msg.data_length = 0;
+            
+            if (player.player_id == winner_id) {
+                msg.type = GameLogicMessageType::PLAYER_WON; // wysylamy informacje o wygranej
+            } else {
+                msg.type = GameLogicMessageType::PLAYER_LOST; // wysylamy informacje o przegranej
+            }
+            
+            if (write(worker->game_pipe_fd[1], &msg, sizeof(msg)) == -1) {
+                if (errno != EPIPE) {
+                    perror("Blad wysylania wyniku gry przez game_pipe");
+                }
+            }
+        }
+    }
+}
+
+
+void reset_game(std::shared_ptr<WorkerThread> worker) {
+    std::cout << "=== RESETOWANIE GRY ===" << std::endl;
+    
+    // Czyścimy macierz
+    for (int i = 0; i < GAME_GRID_SIZE; ++i) {
+        for (int j = 0; j < GAME_GRID_SIZE; ++j) {
+            worker->matrix_grid[i][j] = '0';
+            worker->matrix_before_coloring[i][j] = '0';
+        }
+    }
+    
+    // Resetujemy stan graczy i umieszczamy ich na nowo
+    for (auto& player : worker->players) {
+        player.is_alive = true;
+        player.coloring = false;
+        player.next_move = '\0';
+        player.direction = 'u';
+        player.waiting_for_respawn = false;
+        
+        // Umieszczamy gracza na planszy
+        int result = matrix_place_player(player, worker);
+        if (result == 1) {
+            std::cout << "Gracz " << player.player_id << " umieszczony na nowej planszy" << std::endl;
+        } else {
+            std::cout << "BLAD: Nie udalo sie umiescic gracza " << player.player_id << std::endl;
+        }
+    }
+    
+    // Resetujemy flagi gry
+    worker->game_ended = false;
+    worker->votes_for_new_game = 0;
+    
+    std::cout << "=== GRA ZRESETOWANA ===" << std::endl;
 }

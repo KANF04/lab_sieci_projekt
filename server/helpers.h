@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
-#include "player.h"  // DODAJ TO - teraz możemy użyć Player
+#include "player.h"
 
 // Stałe
 const int GAME_GRID_SIZE = 20;
@@ -22,23 +22,26 @@ enum class MessageType : char {
     REMOVE_PLAYER = 'R',
     MATRIX_UPDATE = 'M',
     PLAYER_MOVE = 'P',
-    RESPWAN_PLAYER = 'S'
+    RESPWAN_PLAYER = 'S',
+    NEW_GAME_REQUEST = 'Y'  // NOWE: Żądanie nowej gry
 };
 
 // Typy komunikatów od game_logic do worker_thread
 enum class GameLogicMessageType : char {
-    PLAYER_ID_ASSIGNED = 'I',     // ID gracza przypisane po pomyślnym umieszczeniu
-    PLAYER_DIED = 'D',            // Gracz umarł
-    PLAYER_WAITING_RESPAWN = 'R', // Gracz czeka na respawn
-    MATRIX_UPDATE = 'M'           // Aktualizacja macierzy
+    PLAYER_ID_ASSIGNED = 'I',
+    PLAYER_DIED = 'D',
+    PLAYER_WAITING_RESPAWN = 'R',
+    MATRIX_UPDATE = 'M',
+    PLAYER_WON = 'W',         
+    PLAYER_LOST = 'L'         
 };
 
 // Struktura komunikatu od game_logic do worker_thread
 struct GameLogicToWorkerMsg {
     GameLogicMessageType type;
-    int player_id;      // ID gracza, jeśli dotyczy ('I', 'D', 'R')
-    int client_fd;      // Deskryptor klienta, jeśli dotyczy ('I', 'D', 'R')
-    size_t data_length; // Długość dodatkowych danych (np. rozmiar macierzy dla 'M')
+    int player_id;
+    int client_fd;
+    size_t data_length;
 };
 
 // Struktura komunikatu
@@ -52,6 +55,7 @@ struct GameMessage {
 struct Client {
     int fd;
     std::string buffer;
+    
     Client(int client_fd) : fd(client_fd), buffer("") {}
 };
 
@@ -70,9 +74,11 @@ struct WorkerThread {
     
     // Stan gry dla tego wątku:
     std::vector<std::vector<char>> matrix_grid;
-    std::vector<std::vector<char>> matrix_before_coloring; // macierz ale bez zadnych trybow kolorowania
-    std::vector<Player> players;  // Teraz to zadziała!
+    std::vector<std::vector<char>> matrix_before_coloring;
+    std::vector<Player> players;
     std::vector<bool> color_used;
+    bool game_ended;           // NOWE: Czy gra się zakończyła
+    int votes_for_new_game;    // NOWE: Liczba głosów za nową grą
     
     WorkerThread();
     ~WorkerThread();

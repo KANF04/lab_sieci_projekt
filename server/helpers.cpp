@@ -1,10 +1,10 @@
 #include "helpers.h"
-#include <unistd.h> // For close()
-#include <cstdio>   // For perror()
+#include <unistd.h>
+#include <cstdio>
 
-// Implementacja konstruktora WorkerThread
 WorkerThread::WorkerThread() : client_count(0), is_running(false), epoll_fd(-1),
-                                color_used(4, false) {  // Inicjalizuj color_used
+    color_used(4, false), game_ended(false), votes_for_new_game(0) {  
+    
     if (pipe(pipe_fd) == -1) {
         perror("Blad tworzenia pipe");
     }
@@ -15,12 +15,10 @@ WorkerThread::WorkerThread() : client_count(0), is_running(false), epoll_fd(-1),
         perror("Blad tworzenia control_pipe");
     }
     
-    // Inicjalizuj macierz gry
     matrix_grid.resize(GAME_GRID_SIZE, std::vector<char>(GAME_GRID_SIZE, '0'));
     matrix_before_coloring = matrix_grid;
 }
 
-// Implementacja destruktora WorkerThread
 WorkerThread::~WorkerThread() {
     if (pipe_fd[0] != -1) close(pipe_fd[0]);
     if (pipe_fd[1] != -1) close(pipe_fd[1]);

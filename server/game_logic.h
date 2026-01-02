@@ -18,6 +18,9 @@ void player_move(Player& player, std::shared_ptr<WorkerThread> worker);
 bool remove_player_from_grid(int player_id, std::shared_ptr<WorkerThread> worker, bool death); 
 std::vector<Player>::iterator find_player_on_id(int player_id, std::shared_ptr<WorkerThread> worker); 
 void fill_closed_area(int player_id, std::shared_ptr<WorkerThread> worker);
+void check_win_condition(std::shared_ptr<WorkerThread> worker);  
+void reset_game(std::shared_ptr<WorkerThread> worker);          
+
 // Zmienne globalne 
 extern const std::vector<char> available_colors;
 extern const std::vector<char> small_colors;

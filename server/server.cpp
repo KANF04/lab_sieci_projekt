@@ -386,9 +386,11 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                                 }
                             }
                         }
-                    } else if (gl_msg.type == GameLogicMessageType::PLAYER_ID_ASSIGNED ||
-                               gl_msg.type == GameLogicMessageType::PLAYER_DIED ||
-                               gl_msg.type == GameLogicMessageType::PLAYER_WAITING_RESPAWN) {
+                    } else if   (gl_msg.type == GameLogicMessageType::PLAYER_ID_ASSIGNED ||
+                                gl_msg.type == GameLogicMessageType::PLAYER_DIED ||
+                                gl_msg.type == GameLogicMessageType::PLAYER_WAITING_RESPAWN ||
+                                gl_msg.type == GameLogicMessageType::PLAYER_WON ||      
+                                gl_msg.type == GameLogicMessageType::PLAYER_LOST) {
                         
                         std::cout << "Odebrano komunikat typu '" << static_cast<char>(gl_msg.type)
                                   << "' dla gracza " << gl_msg.player_id
@@ -472,7 +474,14 @@ void worker_thread_function(std::shared_ptr<WorkerThread> worker) {
                                 msg.client_fd = fd;
                                 write(worker->control_pipe_fd[1], &msg, sizeof(msg));
 
+                            } else if (received_char == 'y'){  
+                                GameMessage msg;
+                                msg.type = MessageType::NEW_GAME_REQUEST;
+                                msg.client_fd = fd;
+                                write(worker->control_pipe_fd[1], &msg, sizeof(msg));
+                                if (DEBUGGING) std::cout << "Wyslano NEW_GAME_REQUEST do game_logic (fd=" << fd << ")" << std::endl;
                             }
+                            
                         }
                     }
                 }
