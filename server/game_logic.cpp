@@ -305,9 +305,7 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                 }
             }
 
-            if (!worker->game_ended) {
-                check_win_condition(worker);
-            }
+            
             // Przekształcamy macierz do ładnej postaci
             std::string matrix = matrix_to_string(worker->matrix_grid);
             
@@ -330,6 +328,9 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                     perror("Blad wysylania macierzy przez game_pipe");
                 }
                 break;
+            }
+            if (!worker->game_ended) {
+                check_win_condition(worker);
             }
             
             std::cout << "Wyslano macierz " << GAME_GRID_SIZE << "x" << GAME_GRID_SIZE 
