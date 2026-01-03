@@ -9,11 +9,13 @@
 #include <vector>
 #include "grid.h"
 #include "dialog.h"
+#include <QString>
 
 using namespace std;
 
 /*----------------------------------------------------FUNKCJE Logiczne----------------------------------------------------*/
 
+// tworzy macierz
 vector<vector<string>> mkMatrix(const vector<char> &matrixBuffer, ssize_t n) {
 
     vector<vector<string>> matrix;
@@ -41,6 +43,41 @@ vector<vector<string>> mkMatrix(const vector<char> &matrixBuffer, ssize_t n) {
     }
 
     return matrix;
+}
+
+// oblicza procent zajętej mapy
+QString statistics(vector<vector<string>> matrix, QString color) {
+    float counter = 0.0f;
+
+    int matrixSize = matrix.size() * matrix[0].size();
+
+    for (int i=0; i<matrix.size(); i++) {
+        for (int j=0; j<matrix[0].size(); j++) {
+            if (color == "czerwony" ) {
+                if (matrix[i][j] == "R") {
+                    counter++;
+                }
+            }
+            else if (color == "niebieski") {
+                if (matrix[i][j] == "B") {
+                    counter++;
+                }
+            }
+            else if (color == "zielony") {
+                if (matrix[i][j] == "G") {
+                    counter++;
+                }
+            }
+            else if (color == "żółty") {
+                if (matrix[i][j] == "Y") {
+                    counter++;
+                }
+            }
+        }
+    }
+    float covPercentage = (counter / matrixSize) * 100;
+
+    return QString::number(covPercentage);
 }
 
 /*----------------------------------------------------FUNKCJE SIECIOWE----------------------------------------------------*/
@@ -95,8 +132,8 @@ void printRecvMsg(int fd, GameWindow *window) {
     if (n <= 0)
         return;
 
-    write(1, matrixBuffer.data(), n); // prints whole matrix in terminal
-    QString color;
+    write(1, matrixBuffer.data(), n); // wyświetla macierz w terminalu
+    static QString color;
     bool isDead = false;
     bool hasWon = false;
     bool hasLost = false;
@@ -117,6 +154,9 @@ void printRecvMsg(int fd, GameWindow *window) {
 
         n= n-2;
 
+        vector<vector<string>> matrix = mkMatrix(matrixBuffer, n); // tworzy macierz z odczytanych danych w przypadku odczytania dodatkowych informacji od serwera
+        window->setMatrix(matrix);
+
         window->setColor(color);
         if (isDead) {
             window->deadMessage();
@@ -132,13 +172,15 @@ void printRecvMsg(int fd, GameWindow *window) {
                 info = "PRZEGRAŁES :(";
             }
 
-            Dialog *dialog = new Dialog(fd, info);
+            QString statistic = statistics(matrix, color);
+            Dialog *dialog = new Dialog(fd, info, statistic);
             dialog->show();
         }
 
     }
-
-    vector<vector<string>> matrix = mkMatrix(matrixBuffer, n); // makes matrix from recieved data
-    window->setMatrix(matrix);
+    else {
+        vector<vector<string>> matrix = mkMatrix(matrixBuffer, n); // tworzy macierz w przypadku gdy serwer wysyla tylko macierz
+        window->setMatrix(matrix);
+    }
 
 }

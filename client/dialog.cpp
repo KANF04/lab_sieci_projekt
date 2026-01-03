@@ -6,7 +6,7 @@
 #include <QLabel>
 #include <QString>
 
-Dialog::Dialog(int fd, QString info, QWidget *parent)
+Dialog::Dialog(int fd, QString info, QString statistic, QWidget *parent)
     : QDialog(parent)
     , fd(fd)
     , ui(new Ui::Dialog)
@@ -19,7 +19,7 @@ Dialog::Dialog(int fd, QString info, QWidget *parent)
     setWindowTitle("Koniec gry");
 
     ui->winLoseLabel->setText(info);
-
+    ui->statisticsLabel->setText("Udało Ci się zająć " + statistic + "% " + "mapy.");
 }
 
 Dialog::~Dialog()

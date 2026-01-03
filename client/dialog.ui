@@ -43,7 +43,7 @@
    <property name="geometry">
     <rect>
      <x>180</x>
-     <y>130</y>
+     <y>140</y>
      <width>221</width>
      <height>71</height>
     </rect>
@@ -59,13 +59,26 @@
    <property name="geometry">
     <rect>
      <x>240</x>
-     <y>50</y>
+     <y>20</y>
      <width>101</width>
      <height>41</height>
     </rect>
    </property>
    <property name="text">
     <string>WYGRŁEŚ!!</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="statisticsLabel">
+   <property name="geometry">
+    <rect>
+     <x>180</x>
+     <y>70</y>
+     <width>271</width>
+     <height>19</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Udało Ci się zająć xx% mapy.</string>
    </property>
   </widget>
  </widget>

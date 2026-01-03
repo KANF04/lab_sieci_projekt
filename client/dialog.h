@@ -13,13 +13,14 @@ class Dialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit Dialog(int fd, QString info, QWidget *parent = nullptr);
+    explicit Dialog(int fd, QString info, QString statistic, QWidget *parent = nullptr);
     ~Dialog();
 
 private:
     void onYesVoteButtonClicked();
     void onNoVoteButtonClicked();
     int fd;
+    QString statistic;
     QString info;
     Ui::Dialog *ui;
 };
