@@ -135,7 +135,7 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
     // Macierz jest już zainicjalizowana w konstruktorze WorkerThread
     // Tworzymy zmienną która mierzy czas
     auto start_time = std::chrono::steady_clock::now();
-    
+
     while (worker->is_running) {
         // Sprawdzamy czy są komunikaty z serwera
         fd_set read_fds;
@@ -274,36 +274,42 @@ void game_logic(std::shared_ptr<WorkerThread> worker) {
                 std::cout << "Gra zakonczona, oczekiwanie na glosy..." << std::endl;
                 continue;  // Pomijamy resztę pętli
             }
-            // Wykonujemy ruchy wszystkich graczy
-            for (auto& player : worker->players) {
-                if (player.is_alive) { // Wykonuj ruch tylko dla żyjących graczy
-                    player_move(player, worker);    
-                }
-                else if (player.waiting_for_respawn){
-                    int result = matrix_place_player(player, worker);
-                    // Jeśli gracz został wskrzeszony
-                    if (result == 1) {
-                        player.waiting_for_respawn = false;
-                        player.is_alive = true;
-                        std::cout << "Gracz " << player.player_id 
-                                  << " (kolor: " << player.color 
-                                  << ") zostal wskrzeszony!" << std::endl;
+            
+            // jesli jest tylko jeden gracz wtedy czekamy az wiecej dolaczy
+            if (worker->players.size() >= 2) {
+                // Wykonujemy ruchy wszystkich graczy
+                for (auto& player : worker->players) {
+                    if (player.is_alive) { // Wykonuj ruch tylko dla żyjących graczy
+                        player_move(player, worker);    
                     }
-                    // Jeśli gracz nadal czeka na respawn (nie udało się go umieścić)
-                    else {
-                        GameLogicToWorkerMsg gl_msg_respawn;
-                        gl_msg_respawn.type = GameLogicMessageType::PLAYER_WAITING_RESPAWN;
-                        gl_msg_respawn.player_id = player.player_id;
-                        gl_msg_respawn.client_fd = player.cfd;
-                        gl_msg_respawn.data_length = 0;
-                        if (write(worker->game_pipe_fd[1], &gl_msg_respawn, sizeof(gl_msg_respawn)) == -1) {
-                            if (errno != EPIPE) {
-                                perror("Blad wysylania PLAYER_WAITING_RESPAWN przez game_pipe");
+                    else if (player.waiting_for_respawn){
+                        int result = matrix_place_player(player, worker);
+                        // Jeśli gracz został wskrzeszony
+                        if (result == 1) {
+                            player.waiting_for_respawn = false;
+                            player.is_alive = true;
+                            std::cout << "Gracz " << player.player_id 
+                                    << " (kolor: " << player.color 
+                                    << ") zostal wskrzeszony!" << std::endl;
+                        }
+                        // Jeśli gracz nadal czeka na respawn (nie udało się go umieścić)
+                        else {
+                            GameLogicToWorkerMsg gl_msg_respawn;
+                            gl_msg_respawn.type = GameLogicMessageType::PLAYER_WAITING_RESPAWN;
+                            gl_msg_respawn.player_id = player.player_id;
+                            gl_msg_respawn.client_fd = player.cfd;
+                            gl_msg_respawn.data_length = 0;
+                            if (write(worker->game_pipe_fd[1], &gl_msg_respawn, sizeof(gl_msg_respawn)) == -1) {
+                                if (errno != EPIPE) {
+                                    perror("Blad wysylania PLAYER_WAITING_RESPAWN przez game_pipe");
+                                }
                             }
                         }
                     }
                 }
             }
+            
+            
 
             
             // Przekształcamy macierz do ładnej postaci
