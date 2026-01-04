@@ -17,17 +17,17 @@ using namespace std;
 
 // tworzy macierz
 vector<vector<string>> mkMatrix(const vector<char> &matrixBuffer, ssize_t n) {
-
     vector<vector<string>> matrix;
-
+    string text(matrixBuffer.data(), n);
+    stringstream all(text);
     string line;
 
-
-    string text(matrixBuffer.data(), n);
-
-    stringstream all(text);
-
     while (getline(all, line)) {
+        // usuń spacje i \r z końca linii
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) {
+            line.pop_back();
+        }
+
         if(line.empty())
             continue;
 
@@ -39,7 +39,8 @@ vector<vector<string>> mkMatrix(const vector<char> &matrixBuffer, ssize_t n) {
             row.push_back(token);
         }
 
-        matrix.push_back(row);
+        if(!row.empty())
+            matrix.push_back(row);
     }
 
     return matrix;
@@ -125,7 +126,7 @@ void shut_conn(int fd) {
 
 void printRecvMsg(int fd, GameWindow *window) {
 
-    static vector<char> matrixBuffer(4096);
+    static vector<char> matrixBuffer(1024);
 
     ssize_t n = read(fd, matrixBuffer.data(), matrixBuffer.size());
 
@@ -145,8 +146,6 @@ void printRecvMsg(int fd, GameWindow *window) {
             case '3': color = "zielony"; break;
             case '4': color = "żółty"; break;
             case 'D': isDead = true; break;
-            case 'W': hasWon = true; break;
-            case 'L': hasLost = true; break;
             default: break;
         }
 
@@ -163,22 +162,47 @@ void printRecvMsg(int fd, GameWindow *window) {
             window->setIsDead(true);
         }
 
+    }
+    else if (matrixBuffer[800] == 'W' || matrixBuffer[800] == 'L') {
+
         QString info;
 
-        if (hasWon || hasLost) {
-            if (hasWon) {
-                info = "WYGRAŁES!!!";
-            } else {
-                info = "PRZEGRAŁES :(";
+        while (!matrixBuffer.empty()) {
+            char lastChar = matrixBuffer.back();
+
+            if (lastChar == 'W' || lastChar == 'L') {
+                break;
             }
 
-            QString statistic = statistics(matrix, color);
-            Dialog *dialog = new Dialog(fd, info, statistic);
-            dialog->show();
+            matrixBuffer.pop_back();
         }
 
-    }
-    else {
+        if (!matrixBuffer.empty()) {
+            char result = matrixBuffer.back();
+            matrixBuffer.pop_back();
+
+            if (result == 'W') {
+                info = "WYGRAŁEŚ!!!";
+            } else if (result == 'L') {
+                info = "PRZEGRAŁEŚ :(";
+            }
+        }
+
+        n = matrixBuffer.size();
+        cout << n << endl;
+
+        vector<vector<string>> matrix = mkMatrix(matrixBuffer, n);
+        cout << matrix.size() << endl;
+
+        cout << matrix[0].size() << endl;
+        window->setMatrix(matrix);
+
+        QString statistic = statistics(matrix, color);
+
+        Dialog *dialog = new Dialog(fd, info, statistic);
+        dialog->show();
+
+    } else {
         vector<vector<string>> matrix = mkMatrix(matrixBuffer, n); // tworzy macierz w przypadku gdy serwer wysyla tylko macierz
         window->setMatrix(matrix);
     }
