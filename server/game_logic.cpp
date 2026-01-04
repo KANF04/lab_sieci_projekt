@@ -650,9 +650,21 @@ void fill_closed_area(int player_id, std::shared_ptr<WorkerThread> worker) {
     // Wiec je kolorujemy
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < m; ++j) {
-            if (worker->matrix_grid[i][j] == '0' && !outside[i][j]) {
+            if (!outside[i][j] && (worker->matrix_grid[i][j] == '0' || worker->matrix_grid[i][j] == 'R' || worker->matrix_grid[i][j] == 'B'
+                || worker->matrix_grid[i][j] == 'G' || worker->matrix_grid[i][j] == 'Y' || worker->matrix_grid[i][j] =='r' 
+                || worker->matrix_grid[i][j] == 'b' || worker->matrix_grid[i][j] == 'g' || worker->matrix_grid[i][j] == 'y' )) {
                 worker->matrix_grid[i][j] = color;
                 worker->matrix_before_coloring[i][j] = color;
+            }
+            // jesli w srodku znajduje sie inny gracz niz my to go zabijamy
+            else if (!outside[i][j] && worker->matrix_grid[i][j] != player_id + '0') {
+                int enemy_id = worker->matrix_grid[i][j] - '0';
+                for (auto& other_player : worker->players) {
+                    if (other_player.player_id == enemy_id) {
+                        remove_player_from_grid(other_player.player_id, worker, true);
+                        break;
+                    }
+                }
             }
         }
     }
